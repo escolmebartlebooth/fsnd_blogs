@@ -1,0 +1,85 @@
+/* Box layout */
+.container {
+    margin: 0 auto;
+    max-width: 1200px;
+    width: 100%;
+}
+
+.row {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.col-12 {
+    width: 100%;
+}
+
+.col-10 {
+    width: 83.333%;
+}
+
+.col-9 {
+    width: 75%;
+}
+
+.col-8 {
+    width: 66.667%;
+}
+
+.col-6 {
+    width: 50%;
+}
+
+.col-4 {
+    width: 33.333%;
+}
+
+.col-3 {
+    width: 25%;
+}
+
+.col-2 {
+    width: 16.667%;
+}
+
+/* global css */
+
+body, input, textarea, button {
+    font-family: 'Lato', sans-serif;
+    font-weight: 400;
+    font-size: 18px;
+}
+
+h1 {
+    font-size: 24px;
+}
+
+header {
+    text-align: center;
+}
+
+.error {
+    color: #cc0000;
+}
+
+/* navigation bar */
+.nav-link {
+    margin: 0 auto;
+    text-align: center;
+    font-size: 14px;
+    text-decoration: none;
+    color: #808080;
+}
+
+.back-link {
+    margin: 5px;
+    font-size: 14px;
+    text-decoration: none;
+    color: #808080;
+}
+
+/* forms */
+.entry-login {
+    margin: 5px 0;
+}
