@@ -87,3 +87,9 @@ header {
 .entry-login {
     margin: 5px 0;
 }
+
+.blogpostentry {
+    height: 300px;
+    width: 100%;
+    color: #808080;
+}

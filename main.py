@@ -127,7 +127,7 @@ class BlogComment(ndb.Model):
     updated = ndb.DateTimeProperty(auto_now=True)
 
 # blog
-class blog(ndb.Model):
+class Blog(ndb.Model):
     username = ndb.StringProperty(required=True)
     userkey = ndb.KeyProperty(kind=BlogUser,required=True)
     subject = ndb.StringProperty(required=True)
@@ -137,6 +137,19 @@ class blog(ndb.Model):
     likes = ndb.IntegerProperty()
     dislikes = ndb.IntegerProperty()
     comments = ndb.StructuredProperty(BlogComment,repeated=True)
+
+    @classmethod
+    def by_id(cls,blog_id):
+        return cls.get_by_id(blog_id)
+
+    @classmethod
+    def new_post(cls,user=None,subject="",posting=""):
+        if not user or not subject or not posting:
+            return None
+        else:
+            post=cls(username=user.username,userkey=user.key,subject=subject,
+                blog=posting,likes=0,dislikes=0,comments=[])
+            return post.put()
 
 # base handler
 class Handler(webapp2.RequestHandler):
@@ -246,6 +259,48 @@ class welcome(Handler):
             # pass to login page
             self.redirect("/blog/login")
 
+class newpost(Handler):
+    def render_newpost(self,**kw):
+        self.render("newpost.html",**kw)
+
+    def get(self):
+        # check if valid user
+        if self.user:
+            # pass to handler function
+            self.render_newpost(pagetitle="new post",items=None,e=None)
+        else:
+            # pass to login page
+            self.redirect("/blog/login")
+
+    def post(self):
+        # get input and logged on user
+        subject = self.request.get('subject')
+        posting = self.request.get('posting')
+        user = self.read_secure_cookie("user_id")
+
+        if not self.user:
+            self.redirect("/blog/login")
+        else:
+            post = Blog.new_post(BlogUser.get_by_id(int(user))
+                ,subject,posting)
+            if not post:
+                e = {'error':'Error on post'}
+                items = {'subject':subject,'posting':posting}
+                self.render_newpost(pagetitle="new post",items=items,e=e)
+            else:
+                self.redirect("/blog/view?b={}".format(str(post.id())))
+
+class viewpost(Handler):
+    def render_viewpost(self,**kw):
+        self.render("viewpost.html",**kw)
+
+    def get(self):
+        # get query string
+        blog_id = self.request.get('b')
+        blog = Blog.by_id(int(blog_id))
+        logging.info(blog)
+        self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog)
+
 # register page handlers
 app = webapp2.WSGIApplication([
     ('/blog', blog),
@@ -253,6 +308,8 @@ app = webapp2.WSGIApplication([
     ('/blog/login', login),
     ('/blog/signup', signup),
     ('/blog/welcome', welcome),
+    ('/blog/new', newpost),
+    ('/blog/view', viewpost)
     #('/blog/blogpost', blogpost),
     #('/blog/blogedit', blogedit),
     #('/blog/(\d+)', blogview)
