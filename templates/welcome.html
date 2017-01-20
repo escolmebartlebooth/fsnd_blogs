@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block csscontent %}
+<link rel="stylesheet" href="../css/blog.css" />
+{% endblock %}
+
+{% block content %}
+<!--the nav bar-->
+<div class="row">
+    <div class="col-3 nav-link">
+        <a class="nav-link" href="/blog/login">LOGIN</a>
+    </div>
+    <div class="col-3 nav-link">
+        <a class="nav-link" href="/blog/signup">SIGNUP</a>
+    </div>
+    <div class="col-3 nav-link">
+        <a class="nav-link" href="/blog/new">NEW POST</a>
+    </div>
+    <div class="col-3 nav-link">
+        <a class="nav-link" href="/blog/logout">LOGOUT</a>
+    </div>
+</div>
+<!-- show blog information here -->
+
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block csscontent %}
+<link rel="stylesheet" href="../css/blog.css" />
+{% endblock %}
+
+{% block content %}
+<form method="post">
+    <div class="row entry-login">
+        <div class="col-2"><label>Username:</label></div>
+        <div class="col-4"><input type="text" name="username" value={{items.username}}></div>
+        <div class="col-2 error"><label>{{e.username}}</label></div>
+    </div>
+    <div class="row entry-login">
+        <div class="col-2"><label>Password:</label></div>
+        <div class="col-4"><input type="password" name="password"></div>
+        <div class="col-2 error"><label>{{e.password}}</label></div>
+    </div>
+    <div class="row entry-login">
+        <div class="col-2"><label>Verify Password:</label></div>
+        <div class="col-4"><input type="password" name="verify"></div>
+        <div class="col-2 error"><label>{{e.verify}}</label></div>
+    </div>
+        <div class="row entry-login">
+        <div class="col-2"><label>email (optional):</label></div>
+        <div class="col-4"><input type="text" name="email" value={{items.email}}></div>
+        <div class="col-2 error"><label>{{e.email}}</label></div>
+    </div>
+    <div class="row entry-login">
+        <button>Signup</button>
+        <label class="back-link"><a class="back-link" href="/blog/login">Already Registered? Login!</a></label>
+        <label class="back-link"><a class="back-link" href="/blog">Just want to read?</a></label>
+    </div>
+</form>
+
+{% endblock %}

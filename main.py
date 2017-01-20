@@ -2,12 +2,16 @@
 import os
 import jinja2
 import webapp2
+import re
+import hmac
+import logging
+import hashlib
+import random
+import string
 
 from google.appengine.ext import ndb
 
 # end imports
-
-# imports end
 
 # create jinja2 environment
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'templates')
@@ -63,13 +67,54 @@ class BlogUser(ndb.Model):
         # return tuple of success, items and e
         status = False
         user = None
+        e = {}
         if username:
             user = cls.query(cls.username == username).fetch(1)
             if user and valid_pw(username,password,user[0].pwd):
+                user = user[0]
                 status = True
 
         if not status:
             e = {'error':'invalid login'}
+
+        return (status, user, e)
+
+    @classmethod
+    def signup(cls,username=None,password=None,verify=None,email=None):
+        # create checkers
+        user_re = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
+        password_re = re.compile(r"^.{3,20}$")
+        email_re = re.compile(r"^[\S]+@[\S]+.[\S]+$")
+        # lookup username and if ok check pwd hash
+        # return tuple of success, items and e
+        status = True
+        user = None
+        e = {}
+        if not (username and user_re.match(username)):
+            status = False
+            e['username'] = 'invalid username'
+
+        if not (password and user_re.match(password)):
+            status = False
+            e['password'] = 'invalid password'
+        elif (password != verify):
+            status = False
+            e['verify'] = 'passwords must match'
+
+        if (email and not email_re.match(email)):
+            status = False
+            e['email'] = 'invalid email'
+
+        if status:
+            user = cls.query(cls.username == username).fetch(1)
+            if user:
+                status = False
+                e['username'] = 'username exists'
+            else:
+                # signup user
+                user = BlogUser(username=username,
+                pwd=make_pw_hash(username,password),
+                email=email).put()
 
         return (status, user, e)
 
@@ -142,6 +187,30 @@ class logout(Handler):
         # pass to handler function
         self.logout()
 
+class signup(Handler):
+    def render_signup(self,**kw):
+        self.render("signup.html",**kw)
+
+    def get(self):
+        # pass to handler function
+        self.render_signup(pagetitle="signup to bartlebooth blogs",items=None,e=None)
+
+    def post(self):
+        # pass to db handler to verify signup
+        username = self.request.get('username')
+        password = self.request.get('password')
+        verify = self.request.get('verify')
+        email = self.request.get('email')
+        # check if user valid
+        status, user, e = BlogUser.signup(username,password,verify,email)
+        # if not valid return error
+        if status:
+            self.login(user)
+            self.redirect("/blog/welcome")
+        else:
+            items = {'username':username,'email':email}
+            self.render_signup(pagetitle="signup to bartlebooth blogs",items=items,e=e)
+
 class login(Handler):
     def render_login(self,**kw):
         self.render("login.html",**kw)
@@ -158,19 +227,32 @@ class login(Handler):
         status, user, e = BlogUser.login(username,password)
         # if not valid return error
         if status:
-            self.login(user)
-            self.redirect("blog/welcome")
+            self.login(user.key)
+            self.redirect("/blog/welcome")
         else:
             items = {'username':username}
             self.render_login(pagetitle="login to bartlebooth blogs",items=items,e=e)
+
+class welcome(Handler):
+    def render_welcome(self,**kw):
+        self.render("welcome.html",**kw)
+
+    def get(self):
+        # check if valid user
+        if self.user:
+            # pass to handler function
+            self.render_welcome(pagetitle="welcome to bartlebooth blogs {}".format(self.user.username))
+        else:
+            # pass to login page
+            self.redirect("/blog/login")
 
 # register page handlers
 app = webapp2.WSGIApplication([
     ('/blog', blog),
     ('/blog/logout', logout),
     ('/blog/login', login),
-    #('/blog/signup', signup),
-    #('/blog/welcome', welcome),
+    ('/blog/signup', signup),
+    ('/blog/welcome', welcome),
     #('/blog/blogpost', blogpost),
     #('/blog/blogedit', blogedit),
     #('/blog/(\d+)', blogview)
