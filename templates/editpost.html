@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block csscontent %}
+<link rel="stylesheet" href="../css/blog.css" />
+{% endblock %}
+
+{% block content %}
+<form method="post">
+    <div class="row entry-login">
+        <input type="hidden" name="blog_id" value={{blog.key.id()}}>
+        <div class="col-2"><label>Subject:</label></div>
+        <div class="col-8"><input type="text" name="subject" value={{blog.subject}}></div>
+    </div>
+    <div class="row entry-login">
+        <div class="col-2"><label>Posting:</label></div>
+        <div class="col-8"><textarea class="blogpostentry" name="posting">{{blog.blog}}</textarea></div>
+    </div>
+    <div class="row entry-login">
+        <div class="col-8"><label class="error">{{e.error}}</label></div>
+    </div>
+    <div class="row entry-login">
+        {% if not e.error %}
+        <button>Save Post</button>
+        {% endif %}
+        <label class="back-link"><a class="back-link" href="/blog">Cancel</a></label>
+    </div>
+</form>
+
+{% endblock %}
