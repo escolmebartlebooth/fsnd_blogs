@@ -46,8 +46,7 @@
 /* global css */
 
 body, input, textarea, button {
-    font-family: 'Lato', sans-serif;
-    font-weight: 400;
+    font-family: 'Baumans', cursive;
     font-size: 18px;
 }
 
@@ -92,4 +91,38 @@ header {
     height: 300px;
     width: 100%;
     color: #808080;
+}
+
+.blog {
+    margin: 10px 0;
+    padding: 5px 5px;
+    border-style: outset;
+    border-color: #f0f0f5;
+    border-radius: 5px;
+}
+
+.subject {
+    margin: 0 0 5px 0;
+}
+
+.likes {
+    text-align: center;
+    color: #009900;
+}
+
+.dislikes {
+    text-align: center;
+    color: #cc0000;
+}
+
+.author {
+    text-align: right;
+}
+
+.blogpost {
+    color: #808080;;
+}
+
+.actions {
+    text-align: right;
 }

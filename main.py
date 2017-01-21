@@ -139,6 +139,10 @@ class Blog(ndb.Model):
     comments = ndb.StructuredProperty(BlogComment,repeated=True)
 
     @classmethod
+    def get_blogs(cls,n=1):
+        return cls.query().order(-cls.updated).fetch(n)
+
+    @classmethod
     def by_id(cls,blog_id):
         return cls.get_by_id(blog_id)
 
@@ -193,7 +197,8 @@ class blog(Handler):
 
     def get(self):
         # when written, get top 10 entries in desc order and pass...
-        self.render_blog(pagetitle="welcome to bartlebooth blogs")
+        blogs = Blog.get_blogs(10)
+        self.render_blog(pagetitle="welcome to bartlebooth blogs",blogs=blogs)
 
 class logout(Handler):
     def get(self):
@@ -297,9 +302,11 @@ class viewpost(Handler):
     def get(self):
         # get query string
         blog_id = self.request.get('b')
-        blog = Blog.by_id(int(blog_id))
-        logging.info(blog)
-        self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog)
+        try:
+            blog = Blog.by_id(int(blog_id))
+            self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog)
+        except ValueError:
+            self.redirect("/blog")
 
 # register page handlers
 app = webapp2.WSGIApplication([

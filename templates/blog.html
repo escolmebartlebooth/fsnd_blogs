@@ -21,5 +21,38 @@
     </div>
 </div>
 <!-- show blog information here -->
-
+<div class="row">
+    <div class="col-12">
+        <label class="error">{{error}}</label>
+    </div>
+</div>
+<br>
+{% for blog in blogs %}
+<article class="row blog">
+    <div class="row subject">
+        <div class="col-4">
+            <div>{{blog.subject}}</div>
+        </div>
+        <div class="col-2 likes">
+            <div>{{blog.likes}}</div>
+        </div>
+        <div class="col-2 dislikes">
+            <div>{{blog.dislikes}}</div>
+        </div>
+        <div class="col-4 author">
+            <div>{{blog.username}} {{blog.updated.strftime('%B %d %Y')}}</div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-10 blogpost">
+            <div>{{blog.blog}}</div>
+        </div>
+        <div class="col-2 actions">
+            <div><a class="nav-link" href={{"/blog/view?b={}".format(blog.key.id())}}>VIEW ({{blog.comments | count }} comments)</a></div>
+            <div><a class="nav-link">EDIT</a></div>
+            <div><a class="nav-link">DELETE</a></div>
+        </div>
+    </div>
+</article>
+{% endfor %}
 {% endblock %}
