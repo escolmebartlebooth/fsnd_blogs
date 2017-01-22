@@ -19,6 +19,7 @@
     form post with blog id and comment index to delete
 -->
 {% for comment in blog.comments %}
+{% set commentindex = loop.index0 %}
 {% include 'blogcomment.html' %}
 {% endfor %}
 <!-- what to draw

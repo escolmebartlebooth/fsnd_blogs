@@ -1,18 +1,29 @@
 <article class="row blog">
     <div class="col-10">
+        {% if e.editcomment and e.editcomment == commentindex|string %}
+        <textarea form="editcomment" class="blogcomment" name="comment">{{comment.comment}}</textarea>
+        {% else %}
         <label class="blogcomment">{{"on {} {} said: {}".format(comment.updated.strftime("%B %d %Y"),comment.username,comment.comment)}}</label>
+        {% endif %}
     </div>
     <div class="actions">
         <div class="action-items">
-            <form method="post">
+            <form method="post" id="editcomment">
                 <input type="hidden" name="blog_id" value={{blog.key.id()}}>
-                <button class="button-link-big" name="commentedit" value="edit">EDIT</button>
+                <input type="hidden" name="comment_id" value={{commentindex}}>
+                {% if e.editcomment and e.editcomment == commentindex|string %}
+                <button class="button-link-big" name="editcomment" value="editsave">SAVE</button>
+                <button class="button-link-big" name="editcomment" value="editcancel">cancel</button>
+                {% else %}
+                <button class="button-link-big" name="editcomment" value="edit">EDIT</button>
+                {% endif %}
             </form>
         </div>
         <div class="action-items">
             <form method="post">
                 <input type="hidden" name="blog_id" value={{blog.key.id()}}>
-                <button class="button-link-big" name="commentdelete" value="delete">DELETE</button>
+                <input type="hidden" name="comment_id" value={{commentindex}}>
+                <button class="button-link-big" name="deletecomment" value="delete">DELETE</button>
             </form>
         </div>
     </div>

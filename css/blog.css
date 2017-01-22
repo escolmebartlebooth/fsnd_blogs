@@ -179,10 +179,12 @@ header {
     }
 
     .actions {
-        text-align: right;
+        margin: 5px 0;
+        text-align: center;
         width: 100%;
     }
 
     .action-items {
-        width: 33.333%;
+        width: 30%;
+        display:inline-block;
     }
