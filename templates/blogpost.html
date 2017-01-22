@@ -1,0 +1,43 @@
+<article class="row blog">
+    <div class="row subject">
+        <div class="col-5">
+            <div>{{blog.subject}}</div>
+        </div>
+        <div class="col-1 likes">
+            <form method="post">
+                <input type="hidden" name="blog_id" value={{blog.key.id()}}>
+                <button class="button-link likes" name="like" value="like">
+                    <img src="/img/likes.svg" height="22px" width="22px">
+                    {{blog.likes}}</button>
+            </form>
+        </div>
+        <div class="col-1 dislikes">
+            <form method="post">
+                <input type="hidden" name="blog_id" value={{blog.key.id()}}>
+                <button class="button-link dislikes" name="dislike" value="dislike">
+                    <img src="/img/dislikes.svg" height="18px" width="18px">
+                    {{blog.dislikes}}</button>
+            </form>
+        </div>
+        <div class="col-5 author">
+            <div>{{blog.username}} {{blog.updated.strftime('%B %d %Y')}}</div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="blogpost">
+            <div>{{blog.blog}}</div>
+        </div>
+        <div class="actions">
+            <div class="action-items"><a class="nav-link" href={{"/blog/view?b={}".format(blog.key.id())}}>VIEW ({{blog.comments | count }} comments)</a>
+            </div>
+            <div class="action-items"><a class="nav-link" href={{"/blog/edit?b={}".format(blog.key.id())}}>EDIT</a>
+            </div>
+            <div class="action-items">
+                <form method="post">
+                    <input type="hidden" name="blog_id" value={{blog.key.id()}}>
+                    <button class="button-link-big" name="blogdelete" value="delete">DELETE</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</article>

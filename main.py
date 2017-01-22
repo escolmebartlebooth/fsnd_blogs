@@ -143,6 +143,82 @@ class Blog(ndb.Model):
         return cls.query().order(-cls.updated).fetch(n)
 
     @classmethod
+    def add_comment(cls,user_id=None,blog_id=None,comment=None):
+        status = True
+        e = {}
+        blog = None
+        # is user?
+        if not user_id:
+            status = False
+            e['error'] = 'you must login to do this'
+            try:
+                blog = Blog.by_id(int(blog_id))
+            except ValueError:
+                e['error'] = 'Bad blog id'
+        else:
+            try:
+                # blog user ok?
+                user = BlogUser.by_id(int(user_id))
+                blog = Blog.by_id(int(blog_id))
+                if (user.key == blog.userkey):
+                    # is blog owned by user
+                    status = False
+                    e['error'] = 'you cannot do this as you do not own this post'
+                else:
+                    # post away...
+                    # something wrong here
+                    if comment:
+                        # add comment
+                        blog_comment = BlogComment(userkey=user.key,
+                            username=user.username, comment=comment)
+                        if blog.comments:
+                            blog.comments.append(blog_comment)
+                            blog.put()
+                        else:
+                            blog_comments = [blog_comment]
+                            blog.comments = blog_comments
+                            blog.put()
+                    else:
+                        status = False
+                        e['error'] = 'Comment must not be empty'
+            except ValueError:
+                status = False
+                e['error'] = 'Bad blog id'
+
+        return (status, blog, e)
+
+    @classmethod
+    def can_comment(cls,user_id=None,blog_id=None):
+        status = True
+        e = {}
+        blog = None
+        # is user?
+        if not user_id:
+            status = False
+            e['error'] = 'you must login to do this'
+            try:
+                blog = Blog.by_id(int(blog_id))
+            except ValueError:
+                e['error'] = 'Bad blog id'
+        else:
+            try:
+                # blog user ok?
+                user = BlogUser.by_id(int(user_id))
+                blog = Blog.by_id(int(blog_id))
+                if (user.key == blog.userkey):
+                    # is blog owned by user
+                    status = False
+                    e['error'] = 'you cannot do this as you do not own this post'
+                else:
+                    # post away...
+                    e['postcomment'] = 'can comment'
+            except ValueError:
+                status = False
+                e['error'] = 'Bad blog id'
+
+        return (status, blog, e)
+
+    @classmethod
     def do_edit(cls,user_id=None,blog_id=None,subject=None,posting=None):
         # is user?
         status = True
@@ -542,6 +618,53 @@ class viewpost(Handler):
                 blog = Blog.by_id(int(blog_id))
                 self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog,e=e)
 
+        # form value is POST COMMENT
+        if self.request.get('postcomment'):
+            blog_id = self.request.get('blog_id')
+            user_id = self.read_secure_cookie('user_id')
+            status, blog, e = Blog.can_comment(user,blog_id)
+            if status:
+                # can comment, so show comment
+                self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog,e=e)
+            else:
+                # can't comment render error or bad blog id - render /blog
+                if blog:
+                    self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog,e=e)
+                else:
+                    self.redirect("/blog")
+
+        # form value is CANCEL COMMENT
+        if self.request.get('blogcancel'):
+            blog_id = self.request.get('blog_id')
+            try:
+                blog = Blog.by_id(int(blog_id))
+                e = {}
+                if blog:
+                    self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog,e=e)
+                else:
+                    self.redirect("/blog")
+            except ValueError:
+                self.redirect("/blog")
+
+        # form value is SAVE COMMENT
+        if self.request.get('addcomment'):
+            blog_id = self.request.get('blog_id')
+            user_id = self.read_secure_cookie('user_id')
+            comment = self.request.get('comment')
+            status, blog, e = Blog.add_comment(user,blog_id,comment)
+            if status:
+                # can comment, so show comment
+                self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog,e=e)
+            else:
+                # can't comment render error or bad blog id - render /blog
+                if blog:
+                    self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog,e=e)
+                else:
+                    self.redirect("/blog")
+
+        # form value is DELETE COMMENT
+        # form value is EDIT COMMENT
+        # form value is SAVEEDITCOMMENT
 
 # register page handlers
 app = webapp2.WSGIApplication([

@@ -1,0 +1,19 @@
+<article class="row blog">
+    <div class="col-10">
+        <label class="blogcomment">{{"on {} {} said: {}".format(comment.updated.strftime("%B %d %Y"),comment.username,comment.comment)}}</label>
+    </div>
+    <div class="actions">
+        <div class="action-items">
+            <form method="post">
+                <input type="hidden" name="blog_id" value={{blog.key.id()}}>
+                <button class="button-link-big" name="commentedit" value="edit">EDIT</button>
+            </form>
+        </div>
+        <div class="action-items">
+            <form method="post">
+                <input type="hidden" name="blog_id" value={{blog.key.id()}}>
+                <button class="button-link-big" name="commentdelete" value="delete">DELETE</button>
+            </form>
+        </div>
+    </div>
+</article>

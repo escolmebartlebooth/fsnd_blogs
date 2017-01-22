@@ -116,6 +116,12 @@ header {
     color: #808080;
 }
 
+.blogcomment {
+    height: 50px;
+    width: 100%;
+    color: #808080;
+}
+
 .blog {
     margin: 10px 0;
     padding: 5px 5px;
