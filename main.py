@@ -22,24 +22,31 @@ JINJA_ENV = jinja2.Environment(loader = jinja2.FileSystemLoader(TEMPLATE_DIR),
 SECRET_KEY = "Fdh3nhUsLhy"
 
 # cookie cutters
+# use hmac with secret key to create a secure cookie
 def make_secure_val(val):
     return "{}|{}".format(val, hmac.new(SECRET_KEY,val).hexdigest())
 
+# check that the current cookie is secure
 def check_secure_val(secure_val):
     val = secure_val.split("|")[0]
     if secure_val == make_secure_val(val):
         return val
 
 # pwd functions
+# make a 5 letter salt for password hashing
 def make_salt():
     return ''.join(random.choice(string.letters) for x in xrange(5))
 
+# use sha256 with the salt and user name to create a secure password
+# or take a passed salt to recreate a secure password for checking
 def make_pw_hash(name, pw, salt=None):
     if not salt:
         salt = make_salt()
     h = hashlib.sha256(name + pw + salt).hexdigest()
     return '%s,%s' % (h, salt)
 
+# call the make_pw_hash with the salt stored with the password
+# this checks whether user/password supplied matches that stored for the user
 def valid_pw(name, pw, h):
     # TO DO: add try / except for bad passwords...
     salt = h.split(",")[1]
@@ -48,19 +55,20 @@ def valid_pw(name, pw, h):
     else:
         return False
 
-# data store entities
-
-# user
+# google data store entities
+# user who can login, write blog entries and comment/like other people's
 class BlogUser(ndb.Model):
     username = ndb.StringProperty(required=True)
     pwd = ndb.StringProperty(required=True)
     email = ndb.StringProperty(required=True)
     created = ndb.DateTimeProperty(auto_now_add=True)
 
+    # class method to return a user, if found, by ID
     @classmethod
     def by_id(cls,user_id):
         return cls.get_by_id(user_id)
 
+    # class method to check whether a user that is requesting login is valid
     @classmethod
     def login(cls,username=None,password=None):
         # lookup username and if ok check pwd hash
@@ -68,7 +76,9 @@ class BlogUser(ndb.Model):
         status = False
         user = None
         e = {}
+        # the username isn't blank, continue, else fail
         if username:
+            # find the user and if found check the password
             user = cls.query(cls.username == username).fetch(1)
             if user and valid_pw(username,password,user[0].pwd):
                 user = user[0]
@@ -79,6 +89,7 @@ class BlogUser(ndb.Model):
 
         return (status, user, e)
 
+    # class method to signup a new user
     @classmethod
     def signup(cls,username=None,password=None,verify=None,email=None):
         # create checkers
@@ -90,10 +101,13 @@ class BlogUser(ndb.Model):
         status = True
         user = None
         e = {}
+
+        # is the username a valid style?
         if not (username and user_re.match(username)):
             status = False
             e['username'] = 'invalid username'
 
+        # is the password a valid style and does it match the verify?
         if not (password and user_re.match(password)):
             status = False
             e['password'] = 'invalid password'
@@ -101,24 +115,25 @@ class BlogUser(ndb.Model):
             status = False
             e['verify'] = 'passwords must match'
 
+        # if provided, is the email a valid style?
         if (email and not email_re.match(email)):
             status = False
             e['email'] = 'invalid email'
 
+        # if all looks well, check if the username already exists
         if status:
             user = cls.query(cls.username == username).fetch(1)
             if user:
                 status = False
                 e['username'] = 'username exists'
             else:
-                # signup user
+                # signup user if the every check has passed so far
                 user = BlogUser(username=username,
-                pwd=make_pw_hash(username,password),
-                email=email).put()
+                pwd=make_pw_hash(username,password),email=email).put()
 
         return (status, user, e)
 
-# blog comment for structured property
+# blog comment for structured property as part of Blog
 class BlogComment(ndb.Model):
     userkey = ndb.KeyProperty(kind=BlogUser, required=True)
     username = ndb.StringProperty(required=True)
@@ -126,7 +141,7 @@ class BlogComment(ndb.Model):
     created = ndb.DateTimeProperty(auto_now_add=True)
     updated = ndb.DateTimeProperty(auto_now=True)
 
-# blog
+# blog structure to record Blogs created by a User, with 0 or more comments by users
 class Blog(ndb.Model):
     username = ndb.StringProperty(required=True)
     userkey = ndb.KeyProperty(kind=BlogUser,required=True)
@@ -138,44 +153,50 @@ class Blog(ndb.Model):
     dislikes = ndb.IntegerProperty()
     comments = ndb.StructuredProperty(BlogComment,repeated=True)
 
+    # class method to return a blog entry by ID
     @classmethod
     def get_blogs(cls,n=1):
         return cls.query().order(-cls.updated).fetch(n)
 
+    # class method to store an edited comment
     @classmethod
     def edit_comment(cls,user_id=None,blog_id=None,comment_id=None,comment=None):
         status = True
         e = {}
         blog = None
-        # is user?
+        # is user logged in? - assume user_id result of read_secure_cookie...
         if not user_id:
             status = False
             e['error'] = 'you must login to do this'
+            # see if the blog_id sent is valid before returning not logged in error
             try:
                 blog = Blog.by_id(int(blog_id))
             except ValueError:
                 e['error'] = 'Bad blog id'
         else:
             try:
-                # blog user ok?
+                # the blog user is valid, now see if the user has permissions to edit
                 comment_id = int(comment_id)
                 user = BlogUser.by_id(int(user_id))
                 blog = Blog.by_id(int(blog_id))
-                logging.info(comment)
+
+                # is the user the same one who created the comment
                 if (user.key != blog.comments[comment_id].userkey):
-                    # is blog owned by user
+                    # NO comment isn't this user's
                     status = False
                     e['error'] = 'you cannot do this as you do not own this comment'
                 elif not comment:
-                    # is blog owned by user
+                    # user ok but comment is empty
                     status = False
                     e['error'] = 'comment cannot be empty'
                 else:
-                    # save edit away...
+                    # user, blog, permissions are ok so save the edit
                     new_comment = BlogComment(userkey=user.key,
                             username=user.username, comment=comment)
                     new_comments = []
                     x = 0
+                    # because using a structured property, create new list of comments
+                    # replace this comment - defined by the index - with the new version
                     for item in blog.comments:
                         if (comment_id != x):
                             new_comments.append(item)

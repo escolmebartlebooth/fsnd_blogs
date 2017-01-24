@@ -1,5 +1,7 @@
+<!-- simple template to include 1 or more comments of a blog on a page -->
 <article class="row blog">
     <div class="col-10">
+        <!-- if the editcomment is set and set for this comment, then make the comment editable -->
         {% if e.editcomment and e.editcomment == commentindex|string %}
         <textarea form="editcomment" class="blogcomment" name="comment">{{comment.comment}}</textarea>
         {% else %}
@@ -9,8 +11,8 @@
     <div class="actions">
         <div class="action-items">
             <form method="post" id="editcomment">
-                <input type="hidden" name="blog_id" value={{blog.key.id()}}>
-                <input type="hidden" name="comment_id" value={{commentindex}}>
+                <input type="hidden" name="blog_id" value="{{blog.key.id()}}">
+                <input type="hidden" name="comment_id" value="{{commentindex}}">
                 {% if e.editcomment and e.editcomment == commentindex|string %}
                 <button class="button-link-big" name="editcomment" value="editsave">SAVE</button>
                 <button class="button-link-big" name="editcomment" value="editcancel">cancel</button>
@@ -21,8 +23,8 @@
         </div>
         <div class="action-items">
             <form method="post">
-                <input type="hidden" name="blog_id" value={{blog.key.id()}}>
-                <input type="hidden" name="comment_id" value={{commentindex}}>
+                <input type="hidden" name="blog_id" value="{{blog.key.id()}}">
+                <input type="hidden" name="comment_id" value="{{commentindex}}">
                 <button class="button-link-big" name="deletecomment" value="delete">DELETE</button>
             </form>
         </div>

@@ -8,10 +8,10 @@
 <form method="post">
     <div class="row entry-login">
         {% if blog %}
-        <input type="hidden" name="blog_id" value={{blog.key.id()}}>
+        <input type="hidden" name="blog_id" value="{{blog.key.id()}}">
         {% endif %}
         <div class="col-2"><label>Subject:</label></div>
-        <div class="col-8"><input type="text" name="subject" value={{blog.subject}}></div>
+        <div class="col-8"><input type="text" name="subject" value="{{blog.subject}}"></div>
     </div>
     <div class="row entry-login">
         <div class="col-2"><label>Posting:</label></div>

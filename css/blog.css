@@ -72,6 +72,7 @@ header {
 
 .error {
     color: #cc0000;
+    padding: 0 0 0 10px;
 }
 
 /* navigation bar */

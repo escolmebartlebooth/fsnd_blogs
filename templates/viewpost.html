@@ -13,10 +13,9 @@
 </div>
 {% include 'blogpost.html' %}
 <br>
-<!-- comments go here for comment in blog.comments
-    draw comment.user said on date: comment.comment
-    form post with blog id and comment index to edit
-    form post with blog id and comment index to delete
+<!--
+comments go here for comment in blog.comments. set the loop index
+here and pass to the inclides template
 -->
 {% for comment in blog.comments %}
 {% set commentindex = loop.index0 %}
