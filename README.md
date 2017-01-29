@@ -1,5 +1,9 @@
 # Udacity Full Stack Nano-degree: Multi-User Blog
 
+## location
+
+The blog is available at: https://bartlebooth-blog.appspot.com/blog
+
 ## Implementation
 
 ### Pre-Requisites
@@ -13,7 +17,6 @@ In addition to the bespoke code, the following imports are made:
 + webapp2
 + re
 + hmac
-+ logging
 + hashlib
 + random
 + string

@@ -4,7 +4,6 @@ import jinja2
 import webapp2
 import re
 import hmac
-import logging
 import hashlib
 import random
 import string
@@ -998,4 +997,4 @@ app = webapp2.WSGIApplication([
     ('/blog/view', viewpost),
     ('/blog/edit', blogedit)
     ],
-    debug=True)
+    debug=False)
