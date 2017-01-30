@@ -1,16 +1,22 @@
 <!-- simple template for a navigation bar -->
+{% if user %}
 <div class="row">
-    <div class="col-3 nav-link">
-        <a class="nav-link" href="/blog/login">LOGIN</a>
-    </div>
-    <div class="col-3 nav-link">
-        <a class="nav-link" href="/blog/signup">SIGNUP</a>
-    </div>
-    <div class="col-3 nav-link">
+    <div class="col-6 nav-link">
         <a class="nav-link" href="/blog/new">NEW POST</a>
     </div>
-    <div class="col-3 nav-link">
+    <div class="col-6 nav-link">
         <a class="nav-link" href="/blog/logout">LOGOUT</a>
     </div>
 </div>
+{% else %}
+<div class="row">
+    <div class="col-6 nav-link">
+        <a class="nav-link" href="/blog/login">LOGIN</a>
+    </div>
+    <div class="col-6 nav-link">
+        <a class="nav-link" href="/blog/signup">SIGNUP</a>
+    </div>
+</div>
+{% endif %}
+
 <br>
