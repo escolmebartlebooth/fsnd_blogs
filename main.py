@@ -67,71 +67,34 @@ class BlogUser(ndb.Model):
     def by_id(cls,user_id):
         return cls.get_by_id(user_id)
 
-    # class method to check whether a user that is requesting login is valid
     @classmethod
     def login(cls,username=None,password=None):
-        # lookup username and if ok check pwd hash
-        # return tuple of success, items and e
-        status = False
-        user = None
-        e = {}
-        # the username isn't blank, continue, else fail
-        if username:
-            # find the user and if found check the password
-            user = cls.query(cls.username == username).fetch(1)
-            if user and valid_pw(username,password,user[0].pwd):
-                user = user[0]
-                status = True
+        """ Check that the username and password is valid and if so, return the User entity """
 
-        if not status:
-            e = {'error':'invalid login'}
+        # look up the username
+        user_list = cls.query(cls.username == username).fetch(1)
 
-        # return the status, the user object and the error dict
-        return (status, user, e)
+        # check if the user exists and the provided password is valid against it's hash
+        if user_list and valid_pw(username,password,user_list[0].pwd):
+            return user_list[0]
+        else:
+            return None
 
     # class method to signup a new user
     @classmethod
-    def signup(cls,username=None,password=None,verify=None,email=None):
-        # create checkers
-        user_re = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
-        password_re = re.compile(r"^.{3,20}$")
-        email_re = re.compile(r"^[\S]+@[\S]+.[\S]+$")
-        # lookup username and if ok check pwd hash
-        # return tuple of success, items and e
-        status = True
+    def signup(cls,username=None,password=None,email=None):
+        """ method to register a new user assuming the user doesn't already exist """
+
         user = None
-        e = {}
 
-        # is the username a valid style?
-        if not (username and user_re.match(username)):
-            status = False
-            e['username'] = 'invalid username'
+        # test if the username already exists
+        user_list = cls.query(cls.username == username).fetch(1)
+        if not user_list:
+            # signup user if the username does not exist and create a hashed password
+            user = BlogUser(username=username,pwd=make_pw_hash(username,password),
+                email=email).put()
 
-        # is the password a valid style and does it match the verify?
-        if not (password and user_re.match(password)):
-            status = False
-            e['password'] = 'invalid password'
-        elif (password != verify):
-            status = False
-            e['verify'] = 'passwords must match'
-
-        # if provided, is the email a valid style?
-        if (email and not email_re.match(email)):
-            status = False
-            e['email'] = 'invalid email'
-
-        # if all looks well, check if the username already exists
-        if status:
-            user = cls.query(cls.username == username).fetch(1)
-            if user:
-                status = False
-                e['username'] = 'username exists'
-            else:
-                # signup user if the every check has passed so far
-                user = BlogUser(username=username,
-                pwd=make_pw_hash(username,password),email=email).put()
-
-        return (status, user, e)
+        return user
 
 # blog comment for structured property as part of Blog
 class BlogComment(ndb.Model):
@@ -521,9 +484,60 @@ class Handler(webapp2.RequestHandler):
     def render(self, template, **kw):
         self.write(self.render_str(template, user=self.user, **kw))
 
-    def login(self, user):
-        # on login write a secure cookie to the browser
-        self.set_secure_cookie('user_id', str(user.id()))
+    def login(self, username, password):
+        """ try to login and if successful write a secure cookie to the browser """
+
+        user = None
+        e = {}
+
+        # if the username isn't blank, continue, else fail
+        if username:
+            # as the User Entity if the username and password are valid
+            user = BlogUser.login(username, password)
+
+        # if the user is good, then set a cookie on the site
+        if user:
+            self.set_secure_cookie('user_id', str(user.key.id()))
+        else:
+            e = {'error':'invalid login'}
+
+        return (user, e)
+
+    def signup(self, username, password, verify, email):
+        """ test that values are valid and then register the user and then login """
+
+        # create checkers
+        user_re = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
+        password_re = re.compile(r"^.{3,20}$")
+        email_re = re.compile(r"^[\S]+@[\S]+.[\S]+$")
+
+        user = None
+        e = {}
+
+        # is the username a valid style?
+        if not (username and user_re.match(username)):
+            e['username'] = 'invalid username'
+
+        # is the password a valid style and does it match the verify?
+        if not (password and user_re.match(password)):
+            e['password'] = 'invalid password'
+        elif (password != verify):
+            e['verify'] = 'passwords must match'
+
+        # if provided, is the email a valid style?
+        if (email and not email_re.match(email)):
+            e['email'] = 'invalid email'
+
+        # if all looks well, register the user
+        if not e:
+            user = BlogUser.signup(username, password, email)
+            if user:
+                # if registered successfully, log the user in
+                self.set_secure_cookie('user_id', str(user.id()))
+            else:
+                e['username'] = 'username exists'
+
+        return (user, e)
 
     def logout(self):
         """ Clear the user_id cookie if the User is set on the page calling /logout"""
@@ -659,6 +673,7 @@ class logout(Handler):
 
 # handler to sign up a new user
 class signup(Handler):
+    """ Handler to process a sign up request and either log the user in or error """
     def render_signup(self,**kw):
         self.render("signup.html",**kw)
 
@@ -667,52 +682,52 @@ class signup(Handler):
         self.render_signup(pagetitle="signup to bartlebooth blogs",items=None,e=None)
 
     def post(self):
-        # pass to db handler to verify signup
+        """ capture form input and then pass to base handler to verify signup """
         username = self.request.get('username')
         password = self.request.get('password')
         verify = self.request.get('verify')
         email = self.request.get('email')
 
         # check if user signup is ok
-        status, user, e = BlogUser.signup(username,password,verify,email)
+        user, e = self.signup(username,password,verify,email)
 
         # if ok, show the welcome page to the new user and log the user in
-        if status:
-            self.login(user)
+        if user:
             self.redirect("/blog/welcome")
         else:
             # else show an error set on the signup page
             items = {'username':username,'email':email}
             self.render_signup(pagetitle="signup to bartlebooth blogs",items=items,e=e)
 
-# handler to login
 class login(Handler):
+    """ Handler which renders a login page and then processes the input to log a user in"""
+
     def render_login(self,**kw):
         self.render("login.html",**kw)
 
     def get(self):
-        # pass to handler function
         self.render_login(pagetitle="login to bartlebooth blogs",items=None,e=None)
 
     def post(self):
-        # capture values
+        """ Process the Login form input and either log the user in or report errors """
+
+        # capture form values
         username = self.request.get('username')
         password = self.request.get('password')
 
         # check if user valid
-        status, user, e = BlogUser.login(username,password)
+        user, e = self.login(username,password)
 
         # if valid, show the welcome page and login the user
-        if status:
-            self.login(user.key)
+        if user:
             self.redirect("/blog/welcome")
         else:
             # if not valid return error
             items = {'username':username}
             self.render_login(pagetitle="login to bartlebooth blogs",items=items,e=e)
 
-# handler for welcome page
 class welcome(Handler):
+    """ Handler to display a welcome page if a user is logged in """
     def render_welcome(self,**kw):
         self.render("welcome.html",**kw)
 
