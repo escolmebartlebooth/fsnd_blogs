@@ -526,12 +526,10 @@ class Handler(webapp2.RequestHandler):
         self.set_secure_cookie('user_id', str(user.id()))
 
     def logout(self):
-        # on logout, if the user is not none wipe out the secure cookie
+        """ Clear the user_id cookie if the User is set on the page calling /logout"""
         if self.user:
             self.response.headers.add_header('Set-Cookie',"user_id=; Path=/")
-            self.redirect("/blog")
-        else:
-            self.redirect("/blog")
+        self.redirect("/blog")
 
     def set_secure_cookie(self, name, val):
         # create a secure cookie from the passed value and store against the name
@@ -654,10 +652,9 @@ class blogedit(Handler):
                     blog=blog,e=e)
 
 
-# handler to log out
 class logout(Handler):
+    """ Handle a GET to the /blog/logout page pass control to Base Handler """
     def get(self):
-        # pass to handler function
         self.logout()
 
 # handler to sign up a new user
