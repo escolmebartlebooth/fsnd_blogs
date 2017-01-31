@@ -8,6 +8,8 @@ import hashlib
 import random
 import string
 
+import logging
+
 from google.appengine.ext import ndb
 
 # end imports
@@ -104,8 +106,9 @@ class BlogComment(ndb.Model):
     created = ndb.DateTimeProperty(auto_now_add=True)
     updated = ndb.DateTimeProperty(auto_now=True)
 
-# blog structure to record Blogs created by a User, with 0 or more comments by users
 class Blog(ndb.Model):
+    """ Entity to store the blog entries made by owners """
+
     username = ndb.StringProperty(required=True)
     userkey = ndb.KeyProperty(kind=BlogUser,required=True)
     subject = ndb.StringProperty(required=True)
@@ -116,10 +119,22 @@ class Blog(ndb.Model):
     dislikes = ndb.IntegerProperty()
     comments = ndb.StructuredProperty(BlogComment,repeated=True)
 
-    # class method to return n blogs in reverse updated order
     @classmethod
     def get_blogs(cls,n=1):
+        """ return the top n blogs ordered by most recent update date """
         return cls.query().order(-cls.updated).fetch(n)
+
+    @classmethod
+    def by_id(cls,blog_id):
+        """ return a specific blog entity by passing a blog id """
+        return cls.get_by_id(blog_id)
+
+    @classmethod
+    def new_post(cls,user=None,subject="",posting=""):
+        """ process a new post and return a post object """
+        post=cls(username=user.username,userkey=user.key,subject=subject,
+                blog=posting,likes=0,dislikes=0,comments=[])
+        return post.put()
 
     # class method to store an edited comment
     @classmethod
@@ -366,33 +381,21 @@ class Blog(ndb.Model):
 
         return status, blog, e
 
-    # class method to delete a blog post
     @classmethod
-    def do_delete(cls,user_id=None,blog_id=None):
-        status = True
-        e = {}
-        blog = None
-        # is user logged in
-        if not user_id:
-            status = False
-            e['error'] = 'you must login to do this'
-        else:
-            try:
-                user = BlogUser.by_id(int(user_id))
-                blog = Blog.by_id(int(blog_id))
-                # does the logged in user own the blog
-                if (user.key != blog.userkey):
-                    # the blog is not owned by the user
-                    status = False
-                    e['error'] = 'you cannot do this as you do not own this post'
-                else:
-                    # the blog is owned by the user so can delete
-                    blog.key.delete()
-            except ValueError:
-                status = False
-                e['error'] = 'Bad blog id'
+    def user_owns_blog(cls,user=None,blog=None):
+        """ checks if the user owns the blog """
+        if (user.key != blog.userkey):
+            return True
 
-        return status, blog, e
+    @classmethod
+    def delete_blog(cls,blog=None):
+        """ deletion process for a blog """
+        try:
+            # the blog is owned by the user so can delete
+            blog.key.delete()
+            return True
+        except:
+            return False
 
     # class method to like or dislike a post
     @classmethod
@@ -443,22 +446,6 @@ class Blog(ndb.Model):
                 e['error'] = 'Bad blog id'
 
         return status, blog, e
-
-    # class method to return a blog from it's ID
-    @classmethod
-    def by_id(cls,blog_id):
-        return cls.get_by_id(blog_id)
-
-    # class method to save a new post
-    @classmethod
-    def new_post(cls,user=None,subject="",posting=""):
-        # if the user is not blank and the subject and posting are ok then continue
-        if not user or not subject or not posting:
-            return None
-        else:
-            post=cls(username=user.username,userkey=user.key,subject=subject,
-                blog=posting,likes=0,dislikes=0,comments=[])
-            return post.put()
 
 # blog like structure
 class BlogLike(ndb.Model):
@@ -545,6 +532,17 @@ class Handler(webapp2.RequestHandler):
             self.response.headers.add_header('Set-Cookie',"user_id=; Path=/")
         self.redirect("/blog")
 
+    def delete_blog(self, user=None, blog=None):
+        """ check that the user owns the blog and if so delete it """
+        if not user:
+            return {'error':'you must be logged in'}
+        elif not Blog.user_owns_blog(user,blog):
+            return {'error':'you do not own this blog'}
+        elif not Blog.delete_blog(blog):
+            return {'error':'deletion failed'}
+        else:
+            return None
+
     def set_secure_cookie(self, name, val):
         # create a secure cookie from the passed value and store against the name
         cookie_val = make_secure_val(val)
@@ -562,54 +560,49 @@ class Handler(webapp2.RequestHandler):
         user_id = self.read_secure_cookie('user_id')
         self.user = user_id and BlogUser.by_id(int(user_id))
 
-# handler class for the main page - list of last 10 blog updates
 class blog(Handler):
+    """ handler for the main app page to display and edit blogs """
+
     def render_blog(self,**kw):
         self.render("blog.html",**kw)
 
     def get(self):
-        # when written, get top 10 entries in desc order and pass...
+        """ get the ten most recent blog entries and render the page """
         blogs = Blog.get_blogs(10)
         self.render_blog(pagetitle="welcome to bartlebooth blogs",blogs=blogs,e=None)
 
     def post(self):
-        # get the user from the secure cookie
-        user = self.read_secure_cookie("user_id")
+        """ process the multiple forms that are on the blog main page """
 
-        # form value is LIKE
-        if self.request.get('like'):
-            blog_id = self.request.get('blog_id')
+        # get the user and blog id from the form entries
+        user_id = self.read_secure_cookie("user_id")
+        blog_id = self.request.get('blog_id')
+        e = {}
+        try:
+            # is user valid
+            user = BlogUser.by_id(int(user_id))
+            try:
+                # the blog and user from the ids
+                blog = Blog.by_id(int(blog_id))
 
-            # try to LIKE the post - if this isn't possible an error will be returned
-            status, blog, e = Blog.do_like(user,blog_id,'like')
-            blogs = Blog.get_blogs(10)
+                # form value is DELETE
+                if self.request.get('blogdelete'):
+                    # pass deletion to a common handler
+                    e = self.delete_blog(user, blog)
+                elif self.request.get('like'):
+                    # try to LIKE the post - if this isn't possible an error will be returned
+                    status, blog, e = Blog.do_like(user,blog_id,'like')
+                elif self.request.get('dislike'):
+                    # form value is DISLIKE
+                    # try to LIKE the post - if this isn't possible an error will be returned
+                    status, blog, e = Blog.do_like(user,blog_id,'dislike')
+            except ValueError:
+                e = {'error':'Bad Blog Id'}
+        except ValueError:
+                e = {'error':'Please Login'}
 
-            # re-render the blog form with the last 10 updated blogs
-            self.render_blog(pagetitle="welcome to bartlebooth blogs",
-                blogs=blogs,e=e)
-
-        # form value is DISLIKE
-        if self.request.get('dislike'):
-            blog_id = self.request.get('blog_id')
-
-            # try to LIKE the post - if this isn't possible an error will be returned
-            status, blog, e = Blog.do_like(user,blog_id,'dislike')
-
-            # re-render the blog form with the last 10 updated blogs
-            blogs = Blog.get_blogs(10)
-            self.render_blog(pagetitle="welcome to bartlebooth blogs",
-                blogs=blogs,e=e)
-
-        # form value is DELETE
-        if self.request.get('blogdelete'):
-            blog_id = self.request.get('blog_id')
-
-            # try to delete the blog
-            status, blog, e = Blog.do_delete(user,blog_id)
-
-            # re render the blog form with last ten updates
-            blogs = Blog.get_blogs(10)
-            self.render_blog(pagetitle="welcome to bartlebooth blogs",
+        blogs = Blog.get_blogs(10)
+        self.render_blog(pagetitle="welcome to bartlebooth blogs",
                 blogs=blogs,e=e)
 
 # handler for the edit form for a blog
@@ -740,46 +733,59 @@ class welcome(Handler):
             # pass to login page if not a valid user
             self.redirect("/blog/login")
 
-# handler for the new post form
 class newpost(Handler):
+    """
+        Handles authentication and rendering of new post page
+        Handles the processing of the new post itself
+    """
+
     def render_newpost(self,**kw):
         self.render("newpost.html",**kw)
 
     def get(self):
-        # check if valid user
+        # check if a valid user is logged in
         user = self.read_secure_cookie("user_id")
         if user:
-            # pass to handler function
+            # the user is valid so render the new post page
             self.render_newpost(pagetitle="new post",items=None,e=None)
         else:
-            # pass to login page
+            # the user isn't valid so pass to login page
             self.redirect("/blog/login")
 
     def post(self):
+        """
+        Captures the new post parameters
+        Checks for validity and creates the new post
+        """
+
         # get input and logged on user
         subject = self.request.get('subject')
         posting = self.request.get('posting')
         user = self.read_secure_cookie("user_id")
+        e = {}
 
-        # if user not valid, redirect to the login page
         if not self.user:
+            # if the user isn't valid, go to the login page
             self.redirect("/blog/login")
+        elif not subject or not posting:
+            # if either subject or post is empty, raise an error
+            e['error'] = "Subject and Post cannot be blank"
         else:
-            # otherwise create a new post and save it
             post = Blog.new_post(BlogUser.get_by_id(int(user))
                 ,subject,posting)
-
-            # check post went ok
             if not post:
-                e = {'error':'Error on post'}
-                items = {'subject':subject,'posting':posting}
-                self.render_newpost(pagetitle="new post",items=items,e=e)
-            else:
-                # if ok, show the view page for the blog entry
-                self.redirect("/blog/view?b={}".format(str(post.id())))
+                e['error'] = 'Error on post'
+        if e:
+            # if the error dictionary has entries, render the form with the errors
+            items = {'subject':subject,'posting':posting}
+            self.render_newpost(pagetitle="new post",items=items,e=e)
+        else:
+            # if ok, show the view page for the blog entry
+            self.redirect("/blog/view?b={}".format(str(post.id())))
 
-# handler for the view post page
 class viewpost(Handler):
+    """ handler to display an individual blog entry """
+
     def render_viewpost(self,**kw):
         self.render("viewpost.html",**kw)
 
@@ -797,8 +803,38 @@ class viewpost(Handler):
             self.redirect("/blog")
 
     def post(self):
-        # work out which form was actioned
-        user = self.read_secure_cookie("user_id")
+        """ handler for the multiple forms on the view page """
+
+        # get the user and blog id
+        user_id = self.read_secure_cookie("user_id")
+        blog_id = self.request.get('blog_id')
+        e = {}
+
+        try:
+            # is the user valid?
+            user = BlogUser.by_id(int(user_id))
+            try:
+                # get the blog entry and user
+                blog = Blog.by_id(int(blog_id))
+
+
+                # form value is DELETE
+                if self.request.get('blogdelete'):
+                    # pass deletion to a common handler
+                    e = self.delete_blog(user,blog)
+            except ValueError:
+                e = {'error':'Bad Blog Id'}
+        except ValueError:
+            e = {'error':'Please Login'}
+
+        # if it was deleted render the blog form
+        if not e:
+            self.redirect("/blog")
+        else:
+            # otherwise re-render the view post
+            blog = Blog.by_id(int(blog_id))
+            self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog,e=e)
+""" need to rework all this...
 
         # form value is LIKE
         if self.request.get('like'):
@@ -831,22 +867,6 @@ class viewpost(Handler):
                     blog=blog,e=e)
             else:
                 # otherwise try to render the view post with the errors
-                blog = Blog.by_id(int(blog_id))
-                self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog,e=e)
-
-        # form value is DELETE
-        if self.request.get('blogdelete'):
-            # get the blog id
-            blog_id = self.request.get('blog_id')
-
-            # see if the blog can be deleted
-            status, blog, e = Blog.do_delete(user,blog_id)
-
-            # if it was deleted render the blog form
-            if status:
-                self.redirect("/blog")
-            else:
-                # otherwise re-render the view post
                 blog = Blog.by_id(int(blog_id))
                 self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog,e=e)
 
@@ -997,6 +1017,7 @@ class viewpost(Handler):
             # the blog id was bad, go back to blogs
             if not blog:
                 self.redirect("/blog")
+...to here """
 
 # register page handlers
 app = webapp2.WSGIApplication([
@@ -1009,4 +1030,4 @@ app = webapp2.WSGIApplication([
     ('/blog/view', viewpost),
     ('/blog/edit', blogedit)
     ],
-    debug=False)
+    debug=True)
