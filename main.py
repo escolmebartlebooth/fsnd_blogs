@@ -384,7 +384,7 @@ class Blog(ndb.Model):
     @classmethod
     def user_owns_blog(cls,user=None,blog=None):
         """ checks if the user owns the blog """
-        if (user.key != blog.userkey):
+        if (user.key == blog.userkey):
             return True
 
     @classmethod
@@ -399,53 +399,24 @@ class Blog(ndb.Model):
 
     # class method to like or dislike a post
     @classmethod
-    def do_like(cls,user_id=None,blog_id=None,like_action=None):
-        status = True
-        e = {}
-        blog = None
-        # is the user logged in
-        if not user_id:
-            status = False
-            e['error'] = 'you must login to do this'
-        else:
-            try:
-                user = BlogUser.by_id(int(user_id))
-                blog = Blog.by_id(int(blog_id))
-                # is the user the owner of the blog
-                if (user.key == blog.userkey):
-                    # blog is owned by user so cannot like / dislike
-                    status = False
-                    e['error'] = 'you cannot do this as you own this post'
-                else:
-                    # has blog been liked/disliked by user already
-                    if BlogLike.like_exists(blogkey=blog.key,userkey=user.key):
-                        status = False
-                        e['error'] = 'you cannot do this more than once'
-                    else:
-                        # if like create a like and increment the like count, else dislike
-                        if like_action == 'like':
-                            bloglike = BlogLike(userkey=user.key,
-                                blogkey=blog.key,like=True).put()
-                            if bloglike:
-                                blog.likes += 1
-                                blog.put()
-                            else:
-                                status = False
-                                e['error'] = 'error posting like'
-                        else:
-                            bloglike = BlogLike(userkey=user.key,
-                                blogkey=blog.key,like=False).put()
-                            if bloglike:
-                                blog.dislikes += 1
-                                blog.put()
-                            else:
-                                status = False
-                                e['error'] = 'error posting like'
-            except ValueError:
-                status = False
-                e['error'] = 'Bad blog id'
-
-        return status, blog, e
+    def like_blog(cls,user=None,blog=None,like_action=None):
+        """ either like or dislike the blog and update the counts """
+        try:
+            if like_action:
+                bloglike = BlogLike(userkey=user.key,
+                    blogkey=blog.key,like=True).put()
+                if bloglike:
+                    blog.likes += 1
+                    blog.put()
+            else:
+                bloglike = BlogLike(userkey=user.key,
+                    blogkey=blog.key,like=False).put()
+                if bloglike:
+                    blog.dislikes += 1
+                    blog.put()
+            return True
+        except:
+            return False
 
 # blog like structure
 class BlogLike(ndb.Model):
@@ -456,8 +427,8 @@ class BlogLike(ndb.Model):
 
     # checker to see if a like / dislike has been saved by a user already
     @classmethod
-    def like_exists(cls,blogkey=None,userkey=None):
-        return cls.query(cls.blogkey==blogkey,cls.userkey==userkey).fetch(1)
+    def like_exists(cls,user=None,blog=None):
+        return cls.query(cls.blogkey==blog.key,cls.userkey==user.key).fetch(1)
 
 # base handler for a request
 class Handler(webapp2.RequestHandler):
@@ -543,6 +514,22 @@ class Handler(webapp2.RequestHandler):
         else:
             return None
 
+    def like_blog(self, user=None, blog=None, like_action=None):
+        """
+            check that user doesn't own blog and that blog hasn't been liked
+            then either like or dislike as requested
+        """
+        if not user:
+            return {'error':'you must be logged in'}
+        elif Blog.user_owns_blog(user,blog):
+            return {'error':'you own this blog so cannot like/dislike it'}
+        elif BlogLike.like_exists(user,blog):
+            return {'error':'you cannot like/dislike this blog more than once'}
+        elif not Blog.like_blog(user,blog,like_action):
+            return {'error':'like/dislike failed'}
+        else:
+            return None
+
     def set_secure_cookie(self, name, val):
         # create a secure cookie from the passed value and store against the name
         cookie_val = make_secure_val(val)
@@ -589,13 +576,14 @@ class blog(Handler):
                 if self.request.get('blogdelete'):
                     # pass deletion to a common handler
                     e = self.delete_blog(user, blog)
+                # form value is LIKE
                 elif self.request.get('like'):
                     # try to LIKE the post - if this isn't possible an error will be returned
-                    status, blog, e = Blog.do_like(user,blog_id,'like')
+                    e = self.like_blog(user,blog,True)
+                # form value is DISLIKE
                 elif self.request.get('dislike'):
-                    # form value is DISLIKE
-                    # try to LIKE the post - if this isn't possible an error will be returned
-                    status, blog, e = Blog.do_like(user,blog_id,'dislike')
+                    # try to DISLIKE the post - if this isn't possible an error will be returned
+                    e = self.like_blog(user,blog,False)
             except ValueError:
                 e = {'error':'Bad Blog Id'}
         except ValueError:
@@ -817,11 +805,15 @@ class viewpost(Handler):
                 # get the blog entry and user
                 blog = Blog.by_id(int(blog_id))
 
-
                 # form value is DELETE
                 if self.request.get('blogdelete'):
                     # pass deletion to a common handler
                     e = self.delete_blog(user,blog)
+                # form value is LIKE
+                elif self.request.get('like'):
+                    e = self.like_blog(user,blog,True)
+                elif self.request.get('dislike'):
+                    e = self.like_blog(user,blog,False)
             except ValueError:
                 e = {'error':'Bad Blog Id'}
         except ValueError:
@@ -835,40 +827,6 @@ class viewpost(Handler):
             blog = Blog.by_id(int(blog_id))
             self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog,e=e)
 """ need to rework all this...
-
-        # form value is LIKE
-        if self.request.get('like'):
-            blog_id = self.request.get('blog_id')
-
-            # try to LIKE the blog
-            status, blog, e = Blog.do_like(user,blog_id,'like')
-
-            # if the blog was able to be liked, render the view post
-            if status:
-                self.render_viewpost(pagetitle="post: {}".format(blog.subject),
-                    blog=blog,e=e)
-            else:
-                # otherwise try to re-render with the errors
-                blog = Blog.by_id(int(blog_id))
-                self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog,e=e)
-
-        # form value is DISLIKE
-        if self.request.get('dislike'):
-            # get the blog id
-            blog_id = self.request.get('blog_id')
-
-            # try to DISLIKE the blog
-            status, blog, e = Blog.do_like(user,blog_id,'dislike')
-
-            # if the DISLIKE worked ok
-            if status:
-                # render the view post again
-                self.render_viewpost(pagetitle="post: {}".format(blog.subject),
-                    blog=blog,e=e)
-            else:
-                # otherwise try to render the view post with the errors
-                blog = Blog.by_id(int(blog_id))
-                self.render_viewpost(pagetitle="post: {}".format(blog.subject),blog=blog,e=e)
 
         # form value is POST COMMENT
         if self.request.get('postcomment'):
