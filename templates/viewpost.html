@@ -6,11 +6,13 @@
 
 {% block content %}
 {% include 'navigation.html' %}
+{% if e %}
 <div class="row">
     <div class="col-12">
         <label class="error">{{e.error}}</label>
     </div>
 </div>
+{% endif %}
 {% include 'blogpost.html' %}
 <br>
 <!--
@@ -25,7 +27,7 @@ here and pass to the inclides template
     if e.postcomment then show textarea with blogid and save/cancel
     else show POST COMMENT form....
 -->
-{% if e.postcomment %}
+{% if postcomment %}
 <div class="action-items">
     <form method="post">
         <input type="hidden" name="blog_id" value={{blog.key.id()}}>
@@ -34,8 +36,7 @@ here and pass to the inclides template
         <button class="button-link-big" name="blogcancel" value="blogcancel">cancel</button>
     </form>
 </div>
-{% endif %}
-{% if not e.postcomment %}
+{% else %}
 <div class="action-items">
     <form method="post">
         <input type="hidden" name="blog_id" value={{blog.key.id()}}>
