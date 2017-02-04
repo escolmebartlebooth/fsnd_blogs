@@ -3,12 +3,8 @@ import os
 import jinja2
 import webapp2
 import re
-import hmac
-import hashlib
-import random
-import string
+import bb_blogdb as bdb
 
-from google.appengine.ext import ndb
 
 # end imports
 
@@ -16,293 +12,6 @@ from google.appengine.ext import ndb
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'templates')
 JINJA_ENV = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATE_DIR),
                                autoescape=True)
-
-# for hmac on cookies - should be somewhere else
-SECRET_KEY = "Fdh3nhUsLhy"
-
-
-def make_secure_val(val):
-    """ use hmac with secret key to create a secure cookie """
-    return "{}|{}".format(val, hmac.new(SECRET_KEY, val).hexdigest())
-
-
-def check_secure_val(secure_val):
-    """ check that the current cookie is secure """
-    val = secure_val.split("|")[0]
-    if secure_val == make_secure_val(val):
-        return val
-
-
-def make_salt():
-    """ make a 5 letter salt for password hashing """
-    return ''.join(random.choice(string.letters) for x in xrange(5))
-
-
-def make_pw_hash(name, pw, salt=None):
-    """
-    use sha256 with the salt and user name to create a secure password
-    or take a passed salt to recreate a secure password for checking
-    """
-    if not salt:
-        salt = make_salt()
-    h = hashlib.sha256(name + pw + salt).hexdigest()
-    return '%s,%s' % (h, salt)
-
-
-def valid_pw(name, pw, h):
-    """
-    call the make_pw_hash with the salt stored with the password
-    this checks whether user/password supplied matches that stored for the user
-    """
-    salt = h.split(",")[1]
-    if make_pw_hash(name, pw, salt) == h:
-        return True
-    else:
-        return False
-
-
-class BlogUser(ndb.Model):
-    """
-    user who can login, write blog entries and comment/like other people's
-    """
-    username = ndb.StringProperty(required=True)
-    pwd = ndb.StringProperty(required=True)
-    email = ndb.StringProperty(required=True)
-    created = ndb.DateTimeProperty(auto_now_add=True)
-
-    @classmethod
-    def by_id(cls, user_id):
-        """ class method to return a user, if found, by ID """
-        return cls.get_by_id(user_id)
-
-    @classmethod
-    def login(cls, username=None, password=None):
-        """
-            Check that the username and password is valid
-            if so, return the User entity
-        """
-
-        # look up the username
-        user_list = cls.query(cls.username == username).fetch(1)
-
-        # check if user exists and password is valid against it's hash
-        if user_list and valid_pw(username, password, user_list[0].pwd):
-            return user_list[0]
-        else:
-            return None
-
-    @classmethod
-    def signup(cls, username=None, password=None, email=None):
-        """
-            method to register a new user
-            assuming the user doesn't already exist
-        """
-
-        user = None
-
-        # test if the username already exists
-        user_list = cls.query(cls.username == username).fetch(1)
-        if not user_list:
-            # signup user if username does not exist create hashed password
-            user = BlogUser(username=username,
-                            pwd=make_pw_hash(username, password),
-                            email=email).put()
-
-        return user
-
-
-class BlogComment(ndb.Model):
-    """ blog comment for structured property as part of BlogPost """
-
-    userkey = ndb.KeyProperty(kind=BlogUser, required=True)
-    username = ndb.StringProperty(required=True)
-    comment = ndb.TextProperty(required=True)
-    created = ndb.DateTimeProperty(auto_now_add=True)
-    updated = ndb.DateTimeProperty(auto_now=True)
-
-
-class BlogPost(ndb.Model):
-    """ Entity to store the blog entries made by owners """
-
-    username = ndb.StringProperty(required=True)
-    userkey = ndb.KeyProperty(kind=BlogUser, required=True)
-    subject = ndb.StringProperty(required=True)
-    blog = ndb.TextProperty(required=True)
-    created = ndb.DateTimeProperty(auto_now_add=True)
-    updated = ndb.DateTimeProperty(auto_now=True)
-    likes = ndb.IntegerProperty()
-    dislikes = ndb.IntegerProperty()
-    comments = ndb.StructuredProperty(BlogComment, repeated=True)
-
-    @classmethod
-    def get_blogs(cls, n=1):
-        """ return the top n blogs ordered by most recent update date """
-        return cls.query().order(-cls.updated).fetch(n)
-
-    @classmethod
-    def by_id(cls, blog_id):
-        """ return a specific blog entity by passing a blog id """
-        return cls.get_by_id(blog_id)
-
-    @classmethod
-    def new_post(cls, user=None, subject="", posting=""):
-        """ process a new post and return a post object """
-        post = cls(username=user.username, userkey=user.key, subject=subject,
-                   blog=posting, likes=0, dislikes=0, comments=[])
-        return post.put()
-
-    @classmethod
-    def save_comment(cls, user=None, blog=None, comment_id=None,
-                     comment=None):
-        """ test the comment id and then update that comment """
-        e = {}
-        try:
-            # is the comment id ok
-            comment_id = int(comment_id)
-            new_comment = BlogComment(userkey=user.key,
-                                      username=user.username, comment=comment)
-
-            # because using a structured property, create new list of comments
-            new_comments = []
-            x = 0
-            # replace this comment defined by the index with the new version
-            for item in blog.comments:
-                if (comment_id != x):
-                    new_comments.append(item)
-                else:
-                    new_comments.append(new_comment)
-                x += 1
-            blog.comments = new_comments
-            blog.put()
-            e['postcomment'] = False
-        except ValueError:
-            e['error'] = 'Bad blog id'
-
-        return e
-
-    @classmethod
-    def user_owns_comment(cls, user, blog, comment_id):
-        """ method checks if the user owns the comment passed """
-        try:
-            comment_id = int(comment_id)
-            if (user.key == blog.comments[comment_id].userkey):
-                # the user doesn't own the comment so error
-                return True
-            else:
-                return False
-        except:
-            # bad comment id
-            return False
-
-    # class method to delete a comment
-    @classmethod
-    def delete_comment(cls, blog=None, comment_id=None):
-        """ remove the comment id from the list of comments """
-        e = {}
-        try:
-            # is the comment id valid
-            comment_id = int(comment_id)
-            new_comments = []
-            x = 0
-            for item in blog.comments:
-                if (comment_id != x):
-                    new_comments.append(item)
-                    x += 1
-                blog.comments = new_comments
-                blog.put()
-                e['postcomment'] = False
-        except ValueError:
-            e['error'] = 'Bad comment id'
-
-        return e
-
-    # class method to add a comment
-    @classmethod
-    def add_comment(cls, user=None, blog=None, comment=None):
-        """
-            create a new comment and save it
-        """
-        e = {}
-        try:
-            blog_comment = BlogComment(userkey=user.key,
-                                       username=user.username,
-                                       comment=comment)
-            # need to test if structure is present on blog
-            if blog.comments:
-                blog.comments.append(blog_comment)
-                blog.put()
-            else:
-                blog_comments = [blog_comment]
-                blog.comments = blog_comments
-                blog.put()
-            e['postcomment'] = False
-        except ValueError:
-            e['error'] = 'something went wrong'
-
-        return e
-
-    @classmethod
-    def edit_blog(cls, blog=None, subject=None, posting=None):
-        """ method to post the edit away """
-
-        blog.subject = subject
-        blog.blog = posting
-        try:
-            blog.put()
-            return True
-        except:
-            return False
-
-    @classmethod
-    def user_owns_blog(cls, user=None, blog=None):
-        """ checks if the user owns the blog """
-        if (user.key == blog.userkey):
-            return True
-
-    @classmethod
-    def delete_blog(cls, blog=None):
-        """ deletion process for a blog """
-        try:
-            # the blog is owned by the user so can delete
-            blog.key.delete()
-            return True
-        except:
-            return False
-
-    @classmethod
-    def like_blog(cls, user=None, blog=None, like_action=None):
-        """ either like or dislike the blog and update the counts """
-        try:
-            if like_action:
-                bloglike = BlogLike(userkey=user.key,
-                                    blogkey=blog.key, like=True).put()
-                if bloglike:
-                    blog.likes += 1
-                    blog.put()
-            else:
-                bloglike = BlogLike(userkey=user.key,
-                                    blogkey=blog.key, like=False).put()
-                if bloglike:
-                    blog.dislikes += 1
-                    blog.put()
-            return True
-        except:
-            return False
-
-
-class BlogLike(ndb.Model):
-    """ referenced entity to manage like / dislike of blog post """
-
-    userkey = ndb.KeyProperty(kind=BlogUser, required=True)
-    blogkey = ndb.KeyProperty(kind=BlogPost, required=True)
-    like = ndb.BooleanProperty(required=True)
-    created = ndb.DateTimeProperty(auto_now_add=True)
-
-    @classmethod
-    def like_exists(cls, user=None, blog=None):
-        """ return a match if a user has liked/disliked a blog """
-        return cls.query(cls.blogkey == blog.key,
-                         cls.userkey == user.key).fetch(1)
 
 
 class Handler(webapp2.RequestHandler):
@@ -330,7 +39,7 @@ class Handler(webapp2.RequestHandler):
         # if the username isn't blank, continue, else fail
         if username:
             # as the User Entity if the username and password are valid
-            user = BlogUser.login(username, password)
+            user = bdb.BlogUser.login(username, password)
 
         # if the user is good, then set a cookie on the site
         if user:
@@ -370,7 +79,7 @@ class Handler(webapp2.RequestHandler):
 
         # if all looks well, register the user
         if not e:
-            user = BlogUser.signup(username, password, email)
+            user = bdb.BlogUser.signup(username, password, email)
             if user:
                 # if registered successfully, log the user in
                 self.set_secure_cookie('user_id', str(user.id()))
@@ -390,9 +99,9 @@ class Handler(webapp2.RequestHandler):
         """ check that the user owns the blog and if so delete it """
         if not user:
             return {'error': 'you must be logged in'}
-        elif not BlogPost.user_owns_blog(user, blog):
+        elif not bdb.BlogPost.user_owns_blog(user, blog):
             return {'error': 'you do not own this blog'}
-        elif not BlogPost.delete_blog(blog):
+        elif not bdb.BlogPost.delete_blog(blog):
             return {'error': 'deletion failed'}
         else:
             return None
@@ -404,11 +113,11 @@ class Handler(webapp2.RequestHandler):
         """
         if not user:
             return {'error': 'you must be logged in'}
-        elif BlogPost.user_owns_blog(user, blog):
+        elif bdb.BlogPost.user_owns_blog(user, blog):
             return {'error': 'you own this blog so cannot like/dislike it'}
-        elif BlogLike.like_exists(user, blog):
+        elif bdb.BlogLike.like_exists(user, blog):
             return {'error': 'you cannot dis/like this blog more than once'}
-        elif not BlogPost.like_blog(user, blog, like_action):
+        elif not bdb.BlogPost.like_blog(user, blog, like_action):
             return {'error': 'like/dislike failed'}
         else:
             return None
@@ -419,7 +128,7 @@ class Handler(webapp2.RequestHandler):
             and store against the name
         """
 
-        cookie_val = make_secure_val(val)
+        cookie_val = bdb.make_secure_val(val)
         self.response.headers.add_header('Set-Cookie',
                                          "{}={}; Path=/".format(name,
                                                                 cookie_val))
@@ -427,14 +136,14 @@ class Handler(webapp2.RequestHandler):
     def read_secure_cookie(self, name):
         """ read the cookie from the browser """
         cookie_val = self.request.cookies.get(name)
-        return cookie_val and check_secure_val(cookie_val)
+        return cookie_val and bdb.check_secure_val(cookie_val)
 
     def initialize(self, *a, **kw):
         """ used to access the user cookie and store against the handler """
 
         webapp2.RequestHandler.initialize(self, *a, **kw)
         user_id = self.read_secure_cookie('user_id')
-        self.user = user_id and BlogUser.by_id(int(user_id))
+        self.user = user_id and bdb.BlogUser.by_id(int(user_id))
 
 
 class blog(Handler):
@@ -445,7 +154,7 @@ class blog(Handler):
 
     def get(self):
         """ get the ten most recent blog entries and render the page """
-        blogs = BlogPost.get_blogs(10)
+        blogs = bdb.BlogPost.get_blogs(10)
         self.render_blog(pagetitle="welcome to bartlebooth blogs",
                          blogs=blogs, e=None, viewpost=False)
 
@@ -458,10 +167,10 @@ class blog(Handler):
         e = {}
         try:
             # is user valid
-            user = BlogUser.by_id(int(user_id))
+            user = bdb.BlogUser.by_id(int(user_id))
             try:
                 # the blog and user from the ids
-                blog = BlogPost.by_id(int(blog_id))
+                blog = bdb.BlogPost.by_id(int(blog_id))
 
                 # form value is DELETE
                 if self.request.get('blogdelete'):
@@ -480,7 +189,7 @@ class blog(Handler):
         except ValueError:
                 e = {'error': 'Please Login'}
 
-        blogs = BlogPost.get_blogs(10)
+        blogs = bdb.BlogPost.get_blogs(10)
         self.render_blog(pagetitle="welcome to bartlebooth blogs",
                          blogs=blogs, e=e)
 
@@ -504,12 +213,12 @@ class blogedit(Handler):
             user_id = self.read_secure_cookie("user_id")
         try:
             # is the user valid
-            user = BlogUser.by_id(int(user_id))
+            user = bdb.BlogUser.by_id(int(user_id))
             try:
                 # test the blog is valid
-                blog = BlogPost.by_id(int(blog_id))
+                blog = bdb.BlogPost.by_id(int(blog_id))
                 # does the user own the blog
-                if not BlogPost.user_owns_blog(user, blog):
+                if not bdb.BlogPost.user_owns_blog(user, blog):
                     e["error"] = "you cannot edit as this is not your post"
             except ValueError:
                 e["error"] = "The blog id is invalid"
@@ -535,20 +244,20 @@ class blogedit(Handler):
 
         try:
             # test the user
-            user = BlogUser.by_id(int(user_id))
+            user = bdb.BlogUser.by_id(int(user_id))
             try:
                 # test blog
-                blog = BlogPost.by_id(int(blog_id))
+                blog = bdb.BlogPost.by_id(int(blog_id))
                 # see if the user owns the blog
-                if not BlogPost.user_owns_blog(user, blog):
+                if not bdb.BlogPost.user_owns_blog(user, blog):
                     e['error'] = 'You do not own this blog'
                 elif not (subject and posting):
                     # set a post error instead of an error to show save button
                     e['posterror'] = 'subject and posting must not be empty'
                 else:
                     # blog is owned by the user so can edit and entry is fine
-                    BlogPost.edit_blog(blog=blog, subject=subject,
-                                       posting=posting)
+                    bdb.BlogPost.edit_blog(blog=blog, subject=subject,
+                                           posting=posting)
             except ValueError:
                 e['error'] = 'Bad blog id'
         except (TypeError, ValueError):
@@ -708,8 +417,8 @@ class newpost(Handler):
             # if either subject or post is empty, raise an error
             e['error'] = "Subject and Post cannot be blank"
         else:
-            post = BlogPost.new_post(BlogUser.get_by_id(int(user)),
-                                     subject, posting)
+            post = bdb.BlogPost.new_post(bdb.BlogUser.get_by_id(int(user)),
+                                         subject, posting)
             if not post:
                 e['error'] = 'Error on post'
         if e:
@@ -736,7 +445,7 @@ class viewpost(Handler):
         blog_id = self.request.get('b')
         try:
             # fetch the blog entity then render the view page
-            blog = BlogPost.by_id(int(blog_id))
+            blog = bdb.BlogPost.by_id(int(blog_id))
             self.render_viewpost(pagetitle="post: {}".format(blog.subject),
                                  blog=blog, e=e, viewpost=True)
         except ValueError:
@@ -753,10 +462,10 @@ class viewpost(Handler):
 
         try:
             # is the user valid?
-            user = BlogUser.by_id(int(user_id))
+            user = bdb.BlogUser.by_id(int(user_id))
             try:
                 # get the blog entry and user
-                blog = BlogPost.by_id(int(blog_id))
+                blog = bdb.BlogPost.by_id(int(blog_id))
 
                 # form value is DELETE
                 if self.request.get('blogdelete'):
@@ -770,7 +479,7 @@ class viewpost(Handler):
                     e = self.like_blog(user, blog, False)
                 # form value is POST COMMENT
                 elif self.request.get('postcomment'):
-                    if BlogPost.user_owns_blog(user, blog):
+                    if bdb.BlogPost.user_owns_blog(user, blog):
                         e['error'] = 'You cannot comment on this blog'
                     else:
                         e['postcomment'] = True
@@ -782,24 +491,24 @@ class viewpost(Handler):
                     comment = self.request.get('comment')
                     if comment:
                         # comment isn't empty
-                        if BlogPost.user_owns_blog(user, blog):
+                        if bdb.BlogPost.user_owns_blog(user, blog):
                             e['error'] = 'You cannot comment on this blog'
                         else:
                             # save the comment
-                            e = BlogPost.add_comment(user, blog, comment)
+                            e = bdb.BlogPost.add_comment(user, blog, comment)
                     else:
                         e['error'] = 'comment cannot be blank'
                 # form value is DELETE COMMENT
                 elif self.request.get('deletecomment'):
                     comment_id = self.request.get('comment_id')
-                    if BlogPost.user_owns_comment(user, blog, comment_id):
-                        e = BlogPost.delete_comment(blog, comment_id)
+                    if bdb.BlogPost.user_owns_comment(user, blog, comment_id):
+                        e = bdb.BlogPost.delete_comment(blog, comment_id)
                     else:
                         e['error'] = 'You do not own this comment'
                 # form value is EDIT COMMENT - EDIT
                 elif self.request.get('editcomment'):
                     comment_id = self.request.get('comment_id')
-                    if BlogPost.user_owns_comment(user, blog, comment_id):
+                    if bdb.BlogPost.user_owns_comment(user, blog, comment_id):
                         e['editcomment'] = comment_id
                     else:
                         e['error'] = 'you cannot edit this comment'
@@ -812,14 +521,13 @@ class viewpost(Handler):
                     comment = self.request.get('comment')
                     if comment:
                         # comment isn't empty
-                        if not BlogPost.user_owns_comment(user, blog,
-                                                          comment_id):
+                        if not bdb.BlogPost.user_owns_comment(user, blog,
+                                                              comment_id):
                             e['error'] = 'You cannot edit this comment'
                         else:
                             # save the comment
-                            e = BlogPost.save_comment(user,
-                                                      blog,
-                                                      comment_id, comment)
+                            e = bdb.BlogPost.save_comment(user, blog,
+                                                          comment_id, comment)
                     else:
                         e['error'] = 'comment cannot be blank'
             except ValueError:
@@ -831,7 +539,7 @@ class viewpost(Handler):
             self.redirect("/blog")
         else:
             # otherwise re-render the view post
-            blog = BlogPost.by_id(int(blog_id))
+            blog = bdb.BlogPost.by_id(int(blog_id))
             self.render_viewpost(pagetitle="post: {}".format(blog.subject),
                                  blog=blog, e=e, viewpost=True)
 
