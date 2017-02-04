@@ -14,8 +14,8 @@
                 <input type="hidden" name="blog_id" value="{{blog.key.id()}}">
                 <input type="hidden" name="comment_id" value="{{commentindex}}">
                 {% if e.editcomment and e.editcomment == commentindex|string %}
-                <button class="button-link-big" name="editcomment" value="editsave">SAVE</button>
-                <button class="button-link-big" name="editcomment" value="editcancel">cancel</button>
+                <button class="button-link-big" name="editsavecomment" value="editsave">SAVE</button>
+                <button class="button-link-big" name="editcancelcomment" value="editcancel">cancel</button>
                 {% else %}
                 <button class="button-link-big" name="editcomment" value="edit">EDIT</button>
                 {% endif %}

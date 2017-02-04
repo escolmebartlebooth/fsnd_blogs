@@ -27,7 +27,7 @@ here and pass to the inclides template
     if e.postcomment then show textarea with blogid and save/cancel
     else show POST COMMENT form....
 -->
-{% if postcomment %}
+{% if e.postcomment %}
 <div class="action-items">
     <form method="post">
         <input type="hidden" name="blog_id" value={{blog.key.id()}}>
