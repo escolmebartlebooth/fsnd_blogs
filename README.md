@@ -10,6 +10,25 @@ The blog is available at: https://bartlebooth-blog.appspot.com/blog
 
 This project was built using Google App Engine (SDK Verison 138.0.0 / python engine: v.1.9.49)
 
+You will need to:
+
++ download and install Python v2.7 (https://www.python.org/download/releases/2.7/)
++ download the google app engine sdk (https://console.cloud.google.com/home)
++ create a new project into which to deploy this app
++ clone from this repository to your own
+
+To run locally, you should call the following command from your repository:
+
+python "C:\Users\david\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\dev_appserver.py" .
+
+this will allow you to connect on localhost:8080/blog
+
+To deploy the app, call gcloud app deploy --project=<projectname>
+
+The following tutorial on the google cloud site has further instructions:
+
+https://cloud.google.com/appengine/docs/python/getting-started/creating-guestbook
+
 In addition to the bespoke code, the following imports are made:
 
 + os
@@ -25,7 +44,8 @@ In addition to the bespoke code, the following imports are made:
 
 ### Files
 
-+ main.py: main python code file containing google datastore entity definitions and page handlers for the site
++ main.py: main python code file page handlers and business rules for the site
++ bb_blogdb.py: containing google datastore entity definitions
 + app.yaml: definition file for the app engine
 + /css/blog.css: CSS file for styling
 + /img/*.{jpg,svg}: images for a thumbs up / down for like / dislike
