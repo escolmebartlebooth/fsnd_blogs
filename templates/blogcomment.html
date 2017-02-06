@@ -3,26 +3,26 @@
     <div class="col-10">
         <!-- if the editcomment is set and set for this comment, then make the comment editable -->
         {% if e.editcomment and e.editcomment == commentindex|string %}
-        <textarea form="editcomment" class="blogcomment" name="comment">{{comment.comment}}</textarea>
+        <textarea class="blogcomment" name="comment" form="commentor">{{comment.comment}}</textarea>
         {% else %}
         <label class="blogcomment">{{"on {} {} said: {}".format(comment.updated.strftime("%B %d %Y"),comment.username,comment.comment)}}</label>
         {% endif %}
     </div>
     <div class="actions">
         <div class="action-items">
-            <form method="post" id="editcomment">
+            <form method="post" id="commentor">
                 <input type="hidden" name="blog_id" value="{{blog.key.id()}}">
                 <input type="hidden" name="comment_id" value="{{commentindex}}">
                 {% if e.editcomment and e.editcomment == commentindex|string %}
                 <button class="button-link-big" name="editsavecomment" value="editsave">SAVE</button>
-                <button class="button-link-big" name="editcancelcomment" value="editcancel">cancel</button>
+                <a class="nav-link" href={{"/blog/{}".format(blog.key.id())}}>cancel</a>
                 {% else %}
-                <button class="button-link-big" name="editcomment" value="edit">EDIT</button>
+                <a class="nav-link" href={{"/blog/editcomment/{}?cid={}".format(blog.key.id(),commentindex)}}>EDIT</a>
                 {% endif %}
             </form>
         </div>
         <div class="action-items">
-            <form method="post">
+            <form method="post" action="/blog/deletecomment">
                 <input type="hidden" name="blog_id" value="{{blog.key.id()}}">
                 <input type="hidden" name="comment_id" value="{{commentindex}}">
                 <button class="button-link-big" name="deletecomment" value="delete">DELETE</button>

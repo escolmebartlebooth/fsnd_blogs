@@ -143,50 +143,27 @@ class BlogPost(ndb.Model):
     def save_comment(cls, user=None, blog=None, comment_id=None,
                      comment=None):
         """ test the comment id and then update that comment """
-        e = {}
-        try:
-            # is the comment id ok
-            comment_id = int(comment_id)
-            new_comment = BlogComment(userkey=user.key,
-                                      username=user.username, comment=comment)
+        new_comment = BlogComment(userkey=user.key,
+                                  username=user.username, comment=comment)
 
-            # because using a structured property, create new list of comments
-            new_comments = []
-            x = 0
-            # replace this comment defined by the index with the new version
-            for item in blog.comments:
-                if (comment_id != x):
-                    new_comments.append(item)
-                else:
-                    new_comments.append(new_comment)
-                x += 1
-            blog.comments = new_comments
-            blog.put()
-            e['postcomment'] = False
-        except ValueError:
-            e['error'] = 'Bad blog id'
-
-        return e
-
-    @classmethod
-    def user_owns_comment(cls, user, blog, comment_id):
-        """ method checks if the user owns the comment passed """
-        try:
-            comment_id = int(comment_id)
-            if (user.key == blog.comments[comment_id].userkey):
-                # the user doesn't own the comment so error
-                return True
+        # because using a structured property, create new list of comments
+        new_comments = []
+        x = 0
+        # replace this comment defined by the index with the new version
+        for item in blog.comments:
+            if (comment_id != x):
+                new_comments.append(item)
             else:
-                return False
-        except:
-            # bad comment id
-            return False
+                new_comments.append(new_comment)
+            x += 1
+        blog.comments = new_comments
+        blog.put()
+        return True
 
     # class method to delete a comment
     @classmethod
     def delete_comment(cls, blog=None, comment_id=None):
         """ remove the comment id from the list of comments """
-        e = {}
         try:
             # is the comment id valid
             comment_id = int(comment_id)
@@ -198,11 +175,10 @@ class BlogPost(ndb.Model):
                     x += 1
                 blog.comments = new_comments
                 blog.put()
-                e['postcomment'] = False
+            return True
         except ValueError:
-            e['error'] = 'Bad comment id'
+            return False
 
-        return e
 
     # class method to add a comment
     @classmethod
@@ -210,7 +186,6 @@ class BlogPost(ndb.Model):
         """
             create a new comment and save it
         """
-        e = {}
         try:
             blog_comment = BlogComment(userkey=user.key,
                                        username=user.username,
@@ -223,11 +198,9 @@ class BlogPost(ndb.Model):
                 blog_comments = [blog_comment]
                 blog.comments = blog_comments
                 blog.put()
-            e['postcomment'] = False
+            return True
         except ValueError:
-            e['error'] = 'something went wrong'
-
-        return e
+            return False
 
     @classmethod
     def edit_blog(cls, blog=None, subject=None, posting=None):
@@ -240,12 +213,6 @@ class BlogPost(ndb.Model):
             return True
         except:
             return False
-
-    @classmethod
-    def user_owns_blog(cls, user=None, blog=None):
-        """ checks if the user owns the blog """
-        if (user.key == blog.userkey):
-            return True
 
     @classmethod
     def delete_blog(cls, blog=None):
