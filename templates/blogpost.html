@@ -30,10 +30,10 @@
         </div>
         <div class="actions">
             {% if not viewpost %}
-            <div class="action-items"><a class="nav-link" href={{"/blog/view?b={}".format(blog.key.id())}}>VIEW ({{blog.comments | count }} comments)</a>
+            <div class="action-items"><a class="nav-link" href={{"/blog/{}".format(blog.key.id())}}>VIEW ({{blog.comments | count }} comments)</a>
             </div>
             {% endif %}
-            <div class="action-items"><a class="nav-link" href={{"/blog/edit?b={}".format(blog.key.id())}}>EDIT</a>
+            <div class="action-items"><a class="nav-link" href={{"/blog/edit/{}".format(blog.key.id())}}>EDIT</a>
             </div>
             <div class="action-items">
                 <form method="post">

@@ -200,7 +200,7 @@ class blogedit(Handler):
     def render_editpost(self, **kw):
         self.render("editpost.html", **kw)
 
-    def get(self):
+    def get(self, blog_id):
         """
             get the blog from the query parameter
             check user owns the blog
@@ -208,9 +208,8 @@ class blogedit(Handler):
 
         e = {}
         blog = None
-        if self.request.get('b'):
-            blog_id = self.request.get('b')
-            user_id = self.read_secure_cookie("user_id")
+        user_id = self.read_secure_cookie("user_id")
+
         try:
             # is the user valid
             user = bdb.BlogUser.by_id(int(user_id))
@@ -436,13 +435,12 @@ class viewpost(Handler):
     def render_viewpost(self, **kw):
         self.render("viewpost.html", **kw)
 
-    def get(self):
+    def get(self, blog_id):
         """
             get the blog_id on the query string and test it's validity
             if ok, show the blog, if not sliently redirect to the /blog page
         """
         e = {}
-        blog_id = self.request.get('b')
         try:
             # fetch the blog entity then render the view page
             blog = bdb.BlogPost.by_id(int(blog_id))
@@ -551,7 +549,7 @@ app = webapp2.WSGIApplication([
     ('/blog/signup', signup),
     ('/blog/welcome', welcome),
     ('/blog/new', newpost),
-    ('/blog/view', viewpost),
-    ('/blog/edit', blogedit)
+    ('/blog/([0-9]+)', viewpost),
+    ('/blog/edit/([0-9]+)', blogedit)
     ],
     debug=False)
