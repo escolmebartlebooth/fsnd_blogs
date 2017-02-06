@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block csscontent %}
-<link rel="stylesheet" href="../css/blog.css" />
+<link rel="stylesheet" href="/css/blog.css" />
 {% endblock %}
 
 {% block content %}
@@ -38,10 +38,7 @@ here and pass to the inclides template
 </div>
 {% else %}
 <div class="action-items">
-    <form method="post">
-        <input type="hidden" name="blog_id" value={{blog.key.id()}}>
-        <button class="button-link-big" name="postcomment" value="postcomment">POST COMMENT</button>
-    </form>
+    <a class="nav-link" href={{"/blog/comment/{}".format(blog.key.id())}}>Post a Comment</a>
 </div>
 {% endif %}
 <br>

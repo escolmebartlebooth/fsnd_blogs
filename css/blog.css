@@ -24,7 +24,7 @@
 }
 
 .col-8 {
-    width: 66.667%;
+    width: 66.666%;
 }
 
 .col-6 {
@@ -32,7 +32,7 @@
 }
 
 .col-5 {
-    width: 41.667%;
+    width: 41.666%;
 }
 
 .col-4 {
@@ -44,7 +44,7 @@
 }
 
 .col-2 {
-    width: 16.667%;
+    width: 16.666%;
 }
 
 .col-1 {
@@ -139,11 +139,13 @@ header {
 .likes {
     text-align: center;
     color: #009900;
+    display: inline-block;
 }
 
 .dislikes {
     text-align: center;
     color: #cc0000;
+    display: inline-block;
 }
 
 .author {

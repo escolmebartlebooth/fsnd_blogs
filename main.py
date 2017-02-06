@@ -5,6 +5,8 @@ import webapp2
 import re
 import bb_blogdb as bdb
 
+import logging
+
 
 # end imports
 
@@ -88,6 +90,21 @@ class Handler(webapp2.RequestHandler):
 
         return (user, e)
 
+    def blog_exists(self, blog_id=None):
+        """ helper to determine if a blog id is valid """
+        try:
+            blog = bdb.BlogPost.by_id(int(blog_id))
+            return blog
+        except (TypeError, ValueError):
+            return None
+
+    def user_owns_blog(self, user=None, blog=None):
+        """ helper to determine if a blog id is valid """
+        if (user.key == blog.userkey):
+            return True
+        else:
+            return False
+
     def logout(self):
         """ clear the user_id cookie if the User is set """
 
@@ -103,22 +120,6 @@ class Handler(webapp2.RequestHandler):
             return {'error': 'you do not own this blog'}
         elif not bdb.BlogPost.delete_blog(blog):
             return {'error': 'deletion failed'}
-        else:
-            return None
-
-    def like_blog(self, user=None, blog=None, like_action=None):
-        """
-            check that user doesn't own blog and that blog hasn't been liked
-            then either like or dislike as requested
-        """
-        if not user:
-            return {'error': 'you must be logged in'}
-        elif bdb.BlogPost.user_owns_blog(user, blog):
-            return {'error': 'you own this blog so cannot like/dislike it'}
-        elif bdb.BlogLike.like_exists(user, blog):
-            return {'error': 'you cannot dis/like this blog more than once'}
-        elif not bdb.BlogPost.like_blog(user, blog, like_action):
-            return {'error': 'like/dislike failed'}
         else:
             return None
 
@@ -172,21 +173,13 @@ class blog(Handler):
                 # the blog and user from the ids
                 blog = bdb.BlogPost.by_id(int(blog_id))
 
-                # form value is DELETE
-                if self.request.get('blogdelete'):
+                # form value is DELETE and the blog exists
+                if blog and self.request.get('blogdelete'):
                     # pass deletion to a common handler
                     e = self.delete_blog(user, blog)
-                # form value is LIKE
-                elif self.request.get('like'):
-                    # try to LIKE the post
-                    e = self.like_blog(user, blog, True)
-                # form value is DISLIKE
-                elif self.request.get('dislike'):
-                    # try to DISLIKE the post
-                    e = self.like_blog(user, blog, False)
             except ValueError:
                 e = {'error': 'Bad Blog Id'}
-        except ValueError:
+        except (TypeError, ValueError):
                 e = {'error': 'Please Login'}
 
         blogs = bdb.BlogPost.get_blogs(10)
@@ -216,9 +209,13 @@ class blogedit(Handler):
             try:
                 # test the blog is valid
                 blog = bdb.BlogPost.by_id(int(blog_id))
-                # does the user own the blog
-                if not bdb.BlogPost.user_owns_blog(user, blog):
-                    e["error"] = "you cannot edit as this is not your post"
+                # blog isn't valid
+                if not blog:
+                    self.redirect('/blog')
+                else:
+                    # does the user own the blog
+                    if not bdb.BlogPost.user_owns_blog(user, blog):
+                        e["error"] = "you cannot edit as this is not your post"
             except ValueError:
                 e["error"] = "The blog id is invalid"
         except (TypeError, ValueError):
@@ -247,16 +244,20 @@ class blogedit(Handler):
             try:
                 # test blog
                 blog = bdb.BlogPost.by_id(int(blog_id))
-                # see if the user owns the blog
-                if not bdb.BlogPost.user_owns_blog(user, blog):
-                    e['error'] = 'You do not own this blog'
-                elif not (subject and posting):
-                    # set a post error instead of an error to show save button
-                    e['posterror'] = 'subject and posting must not be empty'
+                # test blog exists
+                if blog:
+                    # see if the user owns the blog
+                    if not bdb.BlogPost.user_owns_blog(user, blog):
+                        e['error'] = 'You do not own this blog'
+                    elif not (subject and posting):
+                        # set a post error instead of an error to show save button
+                        e['posterror'] = 'subject and posting must not be empty'
+                    else:
+                        # blog is owned by the user so can edit and entry is fine
+                        bdb.BlogPost.edit_blog(blog=blog, subject=subject,
+                                               posting=posting)
                 else:
-                    # blog is owned by the user so can edit and entry is fine
-                    bdb.BlogPost.edit_blog(blog=blog, subject=subject,
-                                           posting=posting)
+                    e['error'] = 'bad blog id'
             except ValueError:
                 e['error'] = 'Bad blog id'
         except (TypeError, ValueError):
@@ -444,9 +445,13 @@ class viewpost(Handler):
         try:
             # fetch the blog entity then render the view page
             blog = bdb.BlogPost.by_id(int(blog_id))
-            self.render_viewpost(pagetitle="post: {}".format(blog.subject),
-                                 blog=blog, e=e, viewpost=True)
-        except ValueError:
+            if blog:
+                self.render_viewpost(pagetitle="post: {}".format(blog.subject),
+                                     blog=blog, e=e, viewpost=True)
+            else:
+                # bad blog id
+                self.redirect("/blog")
+        except (TypeError, ValueError):
             # if an error getting the blog redirect to the blog page
             self.redirect("/blog")
 
@@ -465,17 +470,11 @@ class viewpost(Handler):
                 # get the blog entry and user
                 blog = bdb.BlogPost.by_id(int(blog_id))
 
-                # form value is DELETE
-                if self.request.get('blogdelete'):
+                # blog exists and form value is DELETE
+                if blog and self.request.get('blogdelete'):
                     # pass deletion to a common handler
                     e = self.delete_blog(user, blog)
-                # form value is LIKE
-                elif self.request.get('like'):
-                    e = self.like_blog(user, blog, True)
-                # form value is DISLIKE
-                elif self.request.get('dislike'):
-                    e = self.like_blog(user, blog, False)
-                # form value is POST COMMENT
+                """ # form value is POST COMMENT
                 elif self.request.get('postcomment'):
                     if bdb.BlogPost.user_owns_blog(user, blog):
                         e['error'] = 'You cannot comment on this blog'
@@ -527,7 +526,7 @@ class viewpost(Handler):
                             e = bdb.BlogPost.save_comment(user, blog,
                                                           comment_id, comment)
                     else:
-                        e['error'] = 'comment cannot be blank'
+                        e['error'] = 'comment cannot be blank' """
             except ValueError:
                 e = {'error': 'Bad Blog Id'}
         except (TypeError, ValueError):
@@ -541,6 +540,54 @@ class viewpost(Handler):
             self.render_viewpost(pagetitle="post: {}".format(blog.subject),
                                  blog=blog, e=e, viewpost=True)
 
+class bloglike(Handler):
+    """ handler to manage the actions of liking a blog """
+
+    def post(self):
+        """
+            check if the user is logged in
+            check if the user owns the blog
+            check if this user has liked/disliked this blog
+            update the like / dislike
+        """
+        referer = self.request.referer
+        blog_id = self.request.get('blog_id')
+        if self.request.get('like'):
+            like_action = True
+        elif self.request.get('dislike'):
+            like_action = False
+
+        if self.user:
+            # see if the user is logged in
+            try:
+                blog = bdb.BlogPost.by_id(int(blog_id))
+                # test blog returned isn't None
+                if (blog and not bdb.BlogPost.user_owns_blog(self.user, blog)
+                    and not bdb.BlogLike.like_exists(self.user, blog)):
+                    # post the like with the like action
+                    bdb.BlogPost.like_blog(self.user, blog, like_action)
+            except (TypeError, ValueError):
+                self.redirect('/blog')
+            self.redirect(referer)
+        else:
+            # bad user id, show login
+            self.redirect('/blog/login')
+
+class blogcomment(Handler):
+    """ handler to manage commenting on a blog """
+
+    def get(self, blog_id):
+        """ test whether logged in and not owner """
+        blog = self.blog_exists(blog_id)
+        if self.user and not self.user_owns_blog(self.user, blog) and blog:
+            e = {'postcomment': True}
+            self.render("viewpost.html",
+                        pagetitle="post: {}".format(blog.subject),
+                        blog=blog, e=e, viewpost=True)
+        else:
+            self.redirect(self.request.referer)
+
+
 # register page handlers
 app = webapp2.WSGIApplication([
     ('/blog', blog),
@@ -550,6 +597,8 @@ app = webapp2.WSGIApplication([
     ('/blog/welcome', welcome),
     ('/blog/new', newpost),
     ('/blog/([0-9]+)', viewpost),
-    ('/blog/edit/([0-9]+)', blogedit)
+    ('/blog/edit/([0-9]+)', blogedit),
+    ('/blog/comment/([0-9]+)', blogcomment),
+    ('/blog/like', bloglike)
     ],
     debug=False)
