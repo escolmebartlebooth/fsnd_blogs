@@ -540,7 +540,7 @@ class blogeditcomment(Handler):
     def post(self, blog_id):
         """ save the comment if logged in and the comment is ok """
         blog = self.blog_exists(blog_id)
-        comment = self.request.get('comment')
+        comment = self.request.get('updatecomment')
         comment_id = self.request.get('comment_id')
         if self.user:
             if (self.user_owns_comment(self.user, blog, comment_id)
