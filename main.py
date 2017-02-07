@@ -507,9 +507,7 @@ class blogdeletecomment(Handler):
                 if self.user_owns_comment(self.user, blog, comment_id) and blog:
                     # delete comment
                     bdb.BlogPost.delete_comment(blog, comment_id)
-                self.render("viewpost.html",
-                            pagetitle="post: {}".format(blog.subject),
-                            blog=blog, e=None, viewpost=True)
+                self.redirect('/blog/{}'.format(int(blog_id)))
             else:
                 self.redirect('/blog/login')
         else:
@@ -565,7 +563,6 @@ class blogeditcomment(Handler):
                 self.redirect(self.request.referer)
         else:
             self.redirect('/blog/login')
-
 
 
 # register page handlers
