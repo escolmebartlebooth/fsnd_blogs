@@ -200,14 +200,13 @@ class blogedit(Handler):
             get the blog from the query parameter
             check user owns the blog
         """
-        e = {}
         if self.user:
             # user valid
             blog = self.blog_exists(blog_id)
             # blog isn't valid
             if blog and self.user_owns_blog(self.user, blog):
                 # render the edit form
-                self.render_editpost(pagetitle="edit post", blog=blog, e=e)
+                self.render_editpost(pagetitle="edit post", blog=blog, e=None)
             else:
                 self.redirect(self.request.referer)
         else:
@@ -223,7 +222,6 @@ class blogedit(Handler):
         blog_id = self.request.get("blog_id")
         subject = self.request.get("subject")
         posting = self.request.get("posting")
-        e = {}
 
         if self.user:
             # user valid
@@ -231,13 +229,13 @@ class blogedit(Handler):
             # test blog exists
             if blog and self.user_owns_blog(self.user, blog):
                 if (subject and posting):
-                    # save the edit
+                    # save the edit and redirect to blog post
                     bdb.BlogPost.edit_blog(blog=blog, subject=subject,
                                            posting=posting)
                     self.redirect('/blog/{}'.format(str(blog_id)))
                 else:
-                    # subject and posting shouldn't be empty
-                    e['posterror'] = 'subject and posting must not be empty'
+                    # subject and posting shouldn't be empty so error
+                    e = {'posterror': 'subject and posting must not be empty'}
                     self.render_editpost(pagetitle="edit post",
                                          blog=blog, e=e)
             else:
@@ -382,14 +380,12 @@ class newpost(Handler):
         subject = self.request.get('subject')
         posting = self.request.get('posting')
 
-        e = {}
-
         if not self.user:
             # if the user isn't valid, go to the login page
             self.redirect("/blog/login")
         elif not subject or not posting:
             # if either subject or post is empty, raise an error
-            e['error'] = "Subject and Post cannot be blank"
+            e = {'error': "Subject and Post cannot be blank"}
             items = {'subject': subject, 'posting': posting}
             self.render_newpost(pagetitle="new post", items=items, e=e)
         else:
@@ -409,11 +405,10 @@ class viewpost(Handler):
             get the blog_id on the query string and test it's validity
             if ok, show the blog, if not sliently redirect to the /blog page
         """
-        e = {}
         blog = self.blog_exists(blog_id)
         if blog:
             self.render_viewpost(pagetitle="post: {}".format(blog.subject),
-                                     blog=blog, e=e, viewpost=True)
+                                 blog=blog, e=None, viewpost=True)
         else:
             self.redirect("/blog")
 
@@ -422,7 +417,6 @@ class viewpost(Handler):
 
         # get the blog id
         blog_id = self.request.get('blog_id')
-        e = {}
 
         if self.user:
             # user is valid
@@ -431,24 +425,6 @@ class viewpost(Handler):
                 # pass deletion to a common handler
                 self.delete_blog(self.user, blog)
             self.redirect("/blog")
-
-            """ # form value is EDIT COMMENT - CANCEL
-                elif self.request.get('editcancelcomment'):
-                    e['postcomment'] = False
-                # form value is EDIT COMMENT - SAVE
-                elif self.request.get('editsavecomment'):
-                    comment_id = self.request.get('comment_id')
-                    comment = self.request.get('comment')
-                    if comment:
-                        # comment isn't empty
-                        if not bdb.BlogPost.user_owns_comment(user, blog,
-                                                              comment_id):
-                            e['error'] = 'You cannot edit this comment'
-                        else:
-                            # save the comment
-                            e = bdb.BlogPost.save_comment(user, blog,
-                                                          comment_id, comment)
-                    else:"""
         else:
             self.redirect('/blog/login')
 
@@ -499,16 +475,20 @@ class blogcomment(Handler):
     def post(self, blog_id):
         """ save the comment if logged in and the comment is ok """
         blog = self.blog_exists(blog_id)
-        if self.user and not self.user_owns_blog(self.user, blog) and blog:
-            comment = self.request.get('comment')
-            if comment:
-                # comment isn't empty
-                bdb.BlogPost.add_comment(self.user, blog, comment)
-                self.render("viewpost.html",
-                            pagetitle="post: {}".format(blog.subject),
-                            blog=blog, e=None, viewpost=True)
+        if self.user:
+            if not self.user_owns_blog(self.user, blog) and blog:
+                comment = self.request.get('comment')
+                if comment:
+                    # comment isn't empty
+                    bdb.BlogPost.add_comment(self.user, blog, comment)
+                    e = None
+                else:
+                    e = {'error': 'comment cannot be blank'}
             else:
-                e = {'error': 'comment cannot be blank', 'postcomment': True}
+                e = {'error': 'error'}
+            self.render("viewpost.html",
+                        pagetitle="post: {}".format(blog.subject),
+                        blog=blog, e=e, viewpost=True)
         else:
             self.redirect('/blog/login')
 
@@ -545,17 +525,17 @@ class blogeditcomment(Handler):
         comment_id = self.request.get('cid')
         try:
             comment_index = int(comment_id)
-            if (self.user
-                and self.user_owns_comment(self.user,
-                                                        blog,
-                                                        comment_index)
-                and blog):
-                e = {'editcomment': comment_id}
+            if self.user:
+                if (self.user_owns_comment(self.user, blog, comment_index)
+                    and blog):
+                    e = {'editcomment': comment_id}
+                else:
+                    e = {}
+                self.render("viewpost.html",
+                            pagetitle="post: {}".format(blog.subject),
+                            blog=blog, e=e, viewpost=True)
             else:
-                e = {}
-            self.render("viewpost.html",
-                        pagetitle="post: {}".format(blog.subject),
-                        blog=blog, e=e, viewpost=True)
+                self.redirect('/blog/login')
         except:
             self.redirect(self.request.referer)
 
@@ -573,14 +553,12 @@ class blogeditcomment(Handler):
                         # comment isn't empty
                         bdb.BlogPost.save_comment(self.user, blog,
                                                   comment_index, comment)
-                        self.render("viewpost.html",
-                                    pagetitle="post: {}".format(blog.subject),
-                                    blog=blog, e=None, viewpost=True)
+                        e = None
                     else:
                         e = {'error': 'comment cannot be blank', 'editcomment': comment_index}
-                        self.render("viewpost.html",
-                                    pagetitle="post: {}".format(blog.subject),
-                                    blog=blog, e=e, viewpost=True)
+                    self.render("viewpost.html",
+                                pagetitle="post: {}".format(blog.subject),
+                                blog=blog, e=e, viewpost=True)
                 except ValueError:
                     self.redirect(self.request.referer)
             else:

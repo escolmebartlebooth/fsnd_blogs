@@ -157,8 +157,8 @@ class BlogPost(ndb.Model):
                 new_comments.append(new_comment)
             x += 1
         blog.comments = new_comments
-        blog.put()
-        return True
+        return blog.put()
+
 
     # class method to delete a comment
     @classmethod
@@ -173,9 +173,8 @@ class BlogPost(ndb.Model):
                 if (comment_id != x):
                     new_comments.append(item)
                     x += 1
-                blog.comments = new_comments
-                blog.put()
-            return True
+            blog.comments = new_comments
+            return blog.put()
         except ValueError:
             return False
 
@@ -193,12 +192,10 @@ class BlogPost(ndb.Model):
             # need to test if structure is present on blog
             if blog.comments:
                 blog.comments.append(blog_comment)
-                blog.put()
             else:
                 blog_comments = [blog_comment]
                 blog.comments = blog_comments
-                blog.put()
-            return True
+            return blog.put()
         except ValueError:
             return False
 
@@ -209,8 +206,7 @@ class BlogPost(ndb.Model):
         blog.subject = subject
         blog.blog = posting
         try:
-            blog.put()
-            return True
+            return blog.put()
         except:
             return False
 
