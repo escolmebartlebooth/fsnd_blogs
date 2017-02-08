@@ -159,7 +159,6 @@ class BlogPost(ndb.Model):
         blog.comments = new_comments
         return blog.put()
 
-
     # class method to delete a comment
     @classmethod
     def delete_comment(cls, blog=None, comment_id=None):
@@ -177,7 +176,6 @@ class BlogPost(ndb.Model):
             return blog.put()
         except ValueError:
             return False
-
 
     # class method to add a comment
     @classmethod

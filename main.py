@@ -90,7 +90,12 @@ class Handler(webapp2.RequestHandler):
         return (user, e)
 
     def blog_exists(self, blog_id=None):
-        """ helper to determine if a blog id is valid """
+        """
+            helper to determine if a blog id is valid
+            return the blog entity if it exists
+            otherwise return None
+        """
+
         try:
             blog = bdb.BlogPost.by_id(int(blog_id))
             return blog
@@ -98,22 +103,20 @@ class Handler(webapp2.RequestHandler):
             return None
 
     def user_owns_blog(self, user=None, blog=None):
-        """ helper to determine if a blog id is valid """
+        """ helper to determine if a user owns the blog """
 
         if (user.key == blog.userkey):
             return True
         else:
             return False
 
-    def logout(self):
-        """ clear the user_id cookie if the User is set """
-
-        if self.user:
-            self.response.headers.add_header('Set-Cookie', "user_id=; Path=/")
-        self.redirect("/blog")
-
     def user_owns_comment(self, user=None, blog=None, comment_id=None):
-        """ helper function to check that the user owns the comment """
+        """
+            helper function to check that the user owns the comment
+            try to cast the id as an integer
+            then check if the comment is owned by the user
+            return true if the user does own the user
+        """
         try:
             # is the comment id an integer
             comment_id = int(comment_id)
@@ -171,13 +174,13 @@ class blog(Handler):
                          blogs=blogs, e=None, viewpost=False)
 
     def post(self):
-        """ process the multiple forms that are on the blog main page """
+        """ process the delete form that is on the blog main page """
 
-        # get the user and blog id from the form entries
+        # get the blog id from the form entries
         blog_id = self.request.get('blog_id')
 
         if self.user:
-            # the blog and user from the ids
+            # the user is logged in, does the blog exist?
             blog = self.blog_exists(blog_id)
 
             # form value is DELETE and the blog exists
@@ -188,6 +191,7 @@ class blog(Handler):
             # re-render the blogs page
             self.redirect('/blog')
         else:
+            # user isn't logged in so show the login page
             self.redirect('/blog/login')
 
 
@@ -205,13 +209,14 @@ class blogedit(Handler):
         if self.user:
             # user valid
             blog = self.blog_exists(blog_id)
-            # blog isn't valid
             if blog and self.user_owns_blog(self.user, blog):
-                # render the edit form
+                # blog is valid and owned by the user so render the edit form
                 self.render_editpost(pagetitle="edit post", blog=blog, e=None)
             else:
+                # TO DO SHOW ERROR ON REFERRER FORM?
                 self.redirect(self.request.referer)
         else:
+            # not logged in so show the login page
             self.redirect('/blog/login')
 
     def post(self, post_id):
@@ -228,7 +233,7 @@ class blogedit(Handler):
         if self.user:
             # user valid
             blog = self.blog_exists(blog_id)
-            # test blog exists
+            # test blog exists and the user owns the form
             if blog and self.user_owns_blog(self.user, blog):
                 if (subject and posting):
                     # save the edit and redirect to blog post
@@ -241,6 +246,7 @@ class blogedit(Handler):
                     self.render_editpost(pagetitle="edit post",
                                          blog=blog, e=e)
             else:
+                # TO DO - SHOULD THIS BE AN ERROR?
                 self.redirect('/blog')
         else:
             self.redirect('/blog/login')
@@ -249,11 +255,14 @@ class blogedit(Handler):
 class logout(Handler):
     """
         Handle a GET to the /blog/logout page
-        pass control to Base Handler
     """
 
     def get(self):
-        self.logout()
+        """ clear the user_id cookie if the User is set """
+
+        if self.user:
+            self.response.headers.add_header('Set-Cookie', "user_id=; Path=/")
+        self.redirect("/blog")
 
 
 class signup(Handler):
@@ -409,6 +418,7 @@ class viewpost(Handler):
         """
         blog = self.blog_exists(blog_id)
         if blog:
+            # blog exists so show the view page
             self.render_viewpost(pagetitle="post: {}".format(blog.subject),
                                  blog=blog, e=None, viewpost=True)
         else:
@@ -423,12 +433,16 @@ class viewpost(Handler):
         if self.user:
             # user is valid
             blog = self.blog_exists(blog_id)
+            # test if the blog exists and a deletion request
             if blog and self.request.get('blogdelete'):
                 # pass deletion to a common handler
                 self.delete_blog(self.user, blog)
+            # TO DO should there be a better error handler here?
             self.redirect("/blog")
         else:
+            # not logged in so show login page
             self.redirect('/blog/login')
+
 
 class bloglike(Handler):
     """ handler to manage the actions of liking a blog """
@@ -440,8 +454,9 @@ class bloglike(Handler):
             check if this user has liked/disliked this blog
             update the like / dislike
         """
-        referer = self.request.referer
         blog_id = self.request.get('blog_id')
+
+        # check whether its a like or dislike request
         if self.request.get('like'):
             like_action = True
         elif self.request.get('dislike'):
@@ -450,15 +465,17 @@ class bloglike(Handler):
         if self.user:
             # see if the user is logged in
             blog = self.blog_exists(blog_id)
-            if (blog
-                and not self.user_owns_blog(self.user, blog)
-                and not bdb.BlogLike.like_exists(self.user, blog)):
+            # see if the blog exists and the user owns the blog
+            if (blog and not self.user_owns_blog(self.user, blog) and not
+                bdb.BlogLike.like_exists(self.user, blog)):
                 # post the like with the like action
                 bdb.BlogPost.like_blog(self.user, blog, like_action)
-            self.redirect(referer)
+            # TO DO better handler here?
+            self.redirect(self.request.referer)
         else:
             # bad user id, show login
             self.redirect('/blog/login')
+
 
 class blogcomment(Handler):
     """ handler to manage commenting on a blog """
@@ -466,18 +483,25 @@ class blogcomment(Handler):
     def get(self, blog_id):
         """ test whether logged in and not owner """
         blog = self.blog_exists(blog_id)
-        if self.user and not self.user_owns_blog(self.user, blog) and blog:
-            e = {'postcomment': True}
-            self.render("viewpost.html",
-                        pagetitle="post: {}".format(blog.subject),
-                        blog=blog, e=e, viewpost=True)
+        if self.user:
+            if not self.user_owns_blog(self.user, blog) and blog:
+                # postcomment True means a textarea will show on the viewpost
+                e = {'postcomment': True}
+                self.render("viewpost.html",
+                            pagetitle="post: {}".format(blog.subject),
+                            blog=blog, e=e, viewpost=True)
+            else:
+                # TO DO check whether better referrer
+                self.redirect(self.request.referer)
         else:
-            self.redirect(self.request.referer)
+            # bad user id
+            self.redirect('/blog/login')
 
     def post(self, blog_id):
         """ save the comment if logged in and the comment is ok """
         blog = self.blog_exists(blog_id)
         if self.user:
+            # user is logged in
             if not self.user_owns_blog(self.user, blog) and blog:
                 comment = self.request.get('comment')
                 if comment:
@@ -488,10 +512,12 @@ class blogcomment(Handler):
                     e = {'error': 'comment cannot be blank'}
             else:
                 e = {'error': 'error'}
+            # TO DO better error handler re blog v owns blog
             self.render("viewpost.html",
                         pagetitle="post: {}".format(blog.subject),
                         blog=blog, e=e, viewpost=True)
         else:
+            # user not logged in
             self.redirect('/blog/login')
 
 
@@ -500,19 +526,23 @@ class blogdeletecomment(Handler):
 
     def post(self):
         """ test whether logged in and not owner """
-        # get form values
+        # get form values if a delete comment request
         if (self.request.get('deletecomment')):
             blog_id = self.request.get('blog_id')
             comment_id = self.request.get('comment_id')
             blog = self.blog_exists(blog_id)
             if self.user:
-                if self.user_owns_comment(self.user, blog, comment_id) and blog:
+                if (self.user_owns_comment(self.user, blog,
+                                           comment_id) and blog):
                     # delete comment
                     bdb.BlogPost.delete_comment(blog, comment_id)
+                # TO DO error handler?
                 self.redirect('/blog/{}'.format(int(blog_id)))
             else:
+                # user not logged in
                 self.redirect('/blog/login')
         else:
+            # TO DO review this
             self.redirect(self.request.referer)
 
 
@@ -526,17 +556,21 @@ class blogeditcomment(Handler):
         try:
             comment_index = int(comment_id)
             if self.user:
-                if (self.user_owns_comment(self.user, blog, comment_index)
-                    and blog):
+                # user logged in
+                if (self.user_owns_comment(self.user,
+                                           blog, comment_index) and blog):
                     e = {'editcomment': comment_id}
                 else:
                     e = {}
+                # TO DO review error handler
                 self.render("viewpost.html",
                             pagetitle="post: {}".format(blog.subject),
                             blog=blog, e=e, viewpost=True)
             else:
+                # bad login
                 self.redirect('/blog/login')
         except:
+            # TO DO review this
             self.redirect(self.request.referer)
 
     def post(self, blog_id):
@@ -545,26 +579,30 @@ class blogeditcomment(Handler):
         comment = self.request.get('updatecomment')
         comment_id = self.request.get('comment_id')
         if self.user:
-            if (self.user_owns_comment(self.user, blog, comment_id)
-                and blog):
+            # user logged in
+            if (self.user_owns_comment(self.user, blog, comment_id) and blog):
                 try:
                     comment_index = int(comment_id)
-                    logging.info(comment_index)
                     if comment:
                         # comment isn't empty
                         bdb.BlogPost.save_comment(self.user, blog,
                                                   comment_index, comment)
                         e = None
                     else:
-                        e = {'error': 'comment cannot be blank', 'editcomment': comment_id}
+                        e = {'error': 'comment cannot be blank'}
+                        e['editcomment'] = comment_id
+                    # TO DO review errors
                     self.render("viewpost.html",
                                 pagetitle="post: {}".format(blog.subject),
                                 blog=blog, e=e, viewpost=True)
                 except ValueError:
+                    # TO DO review this
                     self.redirect(self.request.referer)
             else:
+                # TO DO review this
                 self.redirect(self.request.referer)
         else:
+            # user not logged in
             self.redirect('/blog/login')
 
 
