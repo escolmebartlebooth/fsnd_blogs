@@ -3,14 +3,14 @@
     <div class="col-10">
         <!-- if the editcomment is set and set for this comment, then make the comment editable -->
         {% if e.editcomment and e.editcomment == commentindex|string %}
-        <textarea form="a1" class="blogcomment" name="updatecomment">{{comment.comment}}</textarea>
+        <textarea form="editcomment" class="blogcomment" name="updatecomment">{{comment.comment}}</textarea>
         {% else %}
         <label class="blogcomment">{{"on {} {} said: {}".format(comment.updated.strftime("%B %d %Y"),comment.username,comment.comment)}}</label>
         {% endif %}
     </div>
     <div class="actions">
         <div class="action-items">
-            <form id="a1" method="post">
+            <form id="editcomment" method="post">
                 <input type="hidden" name="blog_id" value="{{blog.key.id()}}">
                 <input type="hidden" name="comment_id" value="{{commentindex}}">
                 {% if e.editcomment and e.editcomment == commentindex|string %}

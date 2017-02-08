@@ -5,6 +5,8 @@ import webapp2
 import re
 import bb_blogdb as bdb
 
+import logging
+
 # end imports
 
 # create jinja2 environment
@@ -547,13 +549,14 @@ class blogeditcomment(Handler):
                 and blog):
                 try:
                     comment_index = int(comment_id)
-                    if comment and comment_index:
+                    logging.info(comment_index)
+                    if comment:
                         # comment isn't empty
                         bdb.BlogPost.save_comment(self.user, blog,
                                                   comment_index, comment)
                         e = None
                     else:
-                        e = {'error': 'comment cannot be blank', 'editcomment': comment_index}
+                        e = {'error': 'comment cannot be blank', 'editcomment': comment_id}
                     self.render("viewpost.html",
                                 pagetitle="post: {}".format(blog.subject),
                                 blog=blog, e=e, viewpost=True)
