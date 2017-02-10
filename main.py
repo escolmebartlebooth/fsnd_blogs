@@ -429,15 +429,15 @@ class viewpost(Handler):
 
         # get the blog id
         blog_id = self.request.get('blog_id')
+        blog = self.blog_exists(blog_id)
 
-        if self.user:
-            # user is valid
-            blog = self.blog_exists(blog_id)
-            # test if the blog exists and a deletion request
-            if blog and self.request.get('blogdelete'):
+        # user is valid
+        if self.user and blog:
+            # test if deletion request
+            if self.request.get('blogdelete'):
                 # pass deletion to a common handler
                 self.delete_blog(self.user, blog)
-            # TO DO should there be a better error handler here?
+            # re-direct to blog
             self.redirect("/blog")
         else:
             # not logged in so show login page
@@ -455,6 +455,7 @@ class bloglike(Handler):
             update the like / dislike
         """
         blog_id = self.request.get('blog_id')
+        blog = self.blog_exists(blog_id)
 
         # check whether its a like or dislike request
         if self.request.get('like'):
@@ -462,18 +463,17 @@ class bloglike(Handler):
         elif self.request.get('dislike'):
             like_action = False
 
-        if self.user:
-            # see if the user is logged in
-            blog = self.blog_exists(blog_id)
-            # see if the blog exists and the user owns the blog
-            if (blog and not self.user_owns_blog(self.user, blog) and not
-                bdb.BlogLike.like_exists(self.user, blog)):
+        # see if the user is logged in
+        if self.user and blog:
+            # does the user owns the blog
+            if not (bdb.BlogLike.like_exists(self.user, blog) or
+                    self.user_owns_blog(self.user, blog)):
                 # post the like with the like action
                 bdb.BlogPost.like_blog(self.user, blog, like_action)
-            # TO DO better handler here?
-            self.redirect(self.request.referer)
+            # go to post
+            self.redirect('/blog/{}'.format(int(blog_id)))
         else:
-            # bad user id, show login
+            # bad user id or blog, show login
             self.redirect('/blog/login')
 
 
@@ -483,26 +483,26 @@ class blogcomment(Handler):
     def get(self, blog_id):
         """ test whether logged in and not owner """
         blog = self.blog_exists(blog_id)
-        if self.user:
-            if not self.user_owns_blog(self.user, blog) and blog:
+        if self.user and blog:
+            if not self.user_owns_blog(self.user, blog):
                 # postcomment True means a textarea will show on the viewpost
                 e = {'postcomment': True}
-                self.render("viewpost.html",
-                            pagetitle="post: {}".format(blog.subject),
-                            blog=blog, e=e, viewpost=True)
             else:
-                # TO DO check whether better referrer
-                self.redirect(self.request.referer)
+                e = {'error': 'you own the blog so cannot comment'}
+            # show page
+            self.render("viewpost.html",
+                        pagetitle="post: {}".format(blog.subject),
+                        blog=blog, e=e, viewpost=True)
         else:
-            # bad user id
+            # bad user id or blog
             self.redirect('/blog/login')
 
     def post(self, blog_id):
         """ save the comment if logged in and the comment is ok """
         blog = self.blog_exists(blog_id)
-        if self.user:
+        if self.user and blog:
             # user is logged in
-            if not self.user_owns_blog(self.user, blog) and blog:
+            if not self.user_owns_blog(self.user, blog):
                 comment = self.request.get('comment')
                 if comment:
                     # comment isn't empty
@@ -511,13 +511,13 @@ class blogcomment(Handler):
                 else:
                     e = {'error': 'comment cannot be blank'}
             else:
-                e = {'error': 'error'}
-            # TO DO better error handler re blog v owns blog
+                e = {'error': 'you own the blog'}
+            # render the page
             self.render("viewpost.html",
                         pagetitle="post: {}".format(blog.subject),
                         blog=blog, e=e, viewpost=True)
         else:
-            # user not logged in
+            # user not logged in or bad blog
             self.redirect('/blog/login')
 
 
@@ -531,19 +531,19 @@ class blogdeletecomment(Handler):
             blog_id = self.request.get('blog_id')
             comment_id = self.request.get('comment_id')
             blog = self.blog_exists(blog_id)
-            if self.user:
-                if (self.user_owns_comment(self.user, blog,
-                                           comment_id) and blog):
+            if self.user and blog:
+                if self.user_owns_comment(self.user, blog,
+                                          comment_id):
                     # delete comment
                     bdb.BlogPost.delete_comment(blog, comment_id)
-                # TO DO error handler?
+                # re-render the blog
                 self.redirect('/blog/{}'.format(int(blog_id)))
             else:
                 # user not logged in
                 self.redirect('/blog/login')
         else:
-            # TO DO review this
-            self.redirect(self.request.referer)
+            # user not logged in
+            self.redirect('/blog/login')
 
 
 class blogeditcomment(Handler):
@@ -555,14 +555,14 @@ class blogeditcomment(Handler):
         comment_id = self.request.get('cid')
         try:
             comment_index = int(comment_id)
-            if self.user:
+            if self.user and blog:
                 # user logged in
-                if (self.user_owns_comment(self.user,
-                                           blog, comment_index) and blog):
+                if self.user_owns_comment(self.user,
+                                          blog, comment_index):
                     e = {'editcomment': comment_id}
                 else:
-                    e = {}
-                # TO DO review error handler
+                    e = {'error': 'you do not own this comment'}
+                # show post
                 self.render("viewpost.html",
                             pagetitle="post: {}".format(blog.subject),
                             blog=blog, e=e, viewpost=True)
@@ -570,17 +570,17 @@ class blogeditcomment(Handler):
                 # bad login
                 self.redirect('/blog/login')
         except:
-            # TO DO review this
-            self.redirect(self.request.referer)
+            # bad comment id so show login
+            self.redirect('/blog/login')
 
     def post(self, blog_id):
         """ save the comment if logged in and the comment is ok """
         blog = self.blog_exists(blog_id)
         comment = self.request.get('updatecomment')
         comment_id = self.request.get('comment_id')
-        if self.user:
+        if self.user and blog:
             # user logged in
-            if (self.user_owns_comment(self.user, blog, comment_id) and blog):
+            if self.user_owns_comment(self.user, blog, comment_id):
                 try:
                     comment_index = int(comment_id)
                     if comment:
@@ -591,18 +591,20 @@ class blogeditcomment(Handler):
                     else:
                         e = {'error': 'comment cannot be blank'}
                         e['editcomment'] = comment_id
-                    # TO DO review errors
-                    self.render("viewpost.html",
-                                pagetitle="post: {}".format(blog.subject),
-                                blog=blog, e=e, viewpost=True)
                 except ValueError:
-                    # TO DO review this
-                    self.redirect(self.request.referer)
+                    # comment id is not an integer / valid
+                    e = {'error': 'bad comment id'}
             else:
-                # TO DO review this
-                self.redirect(self.request.referer)
+                # comment is not owned by user
+                e = {'error': 'you do not own this comment'}
+
+            # render the view post page
+            self.render("viewpost.html",
+                        pagetitle="post: {}".format(blog.subject),
+                        blog=blog, e=e, viewpost=True)
+
         else:
-            # user not logged in
+            # user not logged in or bad blog
             self.redirect('/blog/login')
 
 

@@ -31,7 +31,7 @@ here and pass to the inclides template
 <div class="action-items">
     <form method="post">
         <input type="hidden" name="blog_id" value={{blog.key.id()}}>
-        <textarea class="blogcomment" name="comment">enter your comment here...</textarea>
+        <textarea class="blogcomment" name="comment" placeholder="enter your comment here..."></textarea>
         <button class="button-link-big" name="addcomment" value="addcomment">SAVE</button>
         <a class="nav-link" href={{"/blog/{}".format(blog.key.id())}}>cancel</a>
     </form>
